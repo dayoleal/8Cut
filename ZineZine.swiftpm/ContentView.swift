@@ -108,6 +108,36 @@ struct ContentView: View {
                                 .foregroundColor(Color("mediumGray"))
                         )
                 }
+                
+                Menu {
+                    let canvasRect = CGRect(origin: .zero, size: .init(width: 800, height: 548))
+
+                    Button ("Black and White"){
+                        Task {
+                            await data.applyFilterToCanvas(CIFilter.photoEffectMono(), rect: canvasRect)
+                        }
+                    }
+
+                    Button ("Inverted Colors"){
+                        Task {
+                            await data.applyFilterToCanvas(CIFilter.colorInvert(), rect: canvasRect)
+                        }
+                    }
+                    
+                    Divider()
+
+                    Button ("Revert Filters", role: .destructive){
+                        data.revertFilters()
+                    }
+
+                } label: {
+                    Image(systemName: "camera.filters")
+                        .font(.title)
+                        .bold()
+                        .foregroundColor(Color("acidGreen"))
+                        .frame(width: 70, height: 70)
+                        .background(Circle().foregroundColor(Color("mediumGray")))
+                }
             }
             .padding(10)
             .background(

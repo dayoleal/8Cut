@@ -8,13 +8,16 @@
 import SwiftUI
 import PaperKit
 import PencilKit
+import CoreImage.CIFilterBuiltins
 
 @available(iOS 26.0, *)
 @Observable
 @MainActor
 class EditorData: NSObject, PKToolPickerObserver {
     var controller: PaperMarkupViewController?
-    var markup: PaperMarkup?
+    private var markup: PaperMarkup?
+    private let ciContext = CIContext()
+    private var markupHistory: [PaperMarkup] = []
     private var toolBehaviors: [String: PKTool] = [:]
     
     /// Initialization Method that creates an empty PaperKit rectangular canvas with a placeholder text
@@ -131,7 +134,36 @@ class EditorData: NSObject, PKToolPickerObserver {
     }
     
     /// Method to apply filters to the canvas
+    func applyFilterToCanvas(_ filter: CIFilter, rect: CGRect) async {
+        /// Capturing the current canvas state as an image
+        guard let currentUIImage = await exportAsImage(rect, scale: 2),
+              let ciImage = CIImage(image: currentUIImage) else { return }
+        
+        /// Saving the current state to make sure the user can reverse
+        ///  the change
+        if let currentMarkup = self.markup {
+            markupHistory.append(currentMarkup)
+        }
+        
+        /// Applying filter to the image
+        filter.setValue(ciImage, forKey: kCIInputImageKey)
+        guard let outputImage = filter.outputImage,
+              let cgImage = ciContext.createCGImage(outputImage, from: outputImage.extent) else { return }
+        
+        // 4. Cria um novo markup que "achata" o anterior com o filtro
+        var filteredMarkup = PaperMarkup(bounds: rect)
+        filteredMarkup.insertNewImage(cgImage, frame: rect)
+        
+        self.markup = filteredMarkup
+        refreshController()
+    }
     
+    /// Reverts the filter applied by the user
+    func revertFilters() {
+        guard let previousState = markupHistory.popLast() else { return }
+        self.markup = previousState
+        refreshController()
+    }
     
     /// CGContext creation
     private func makeCGContext(size: CGSize, scale: CGFloat) -> CGContext? {
