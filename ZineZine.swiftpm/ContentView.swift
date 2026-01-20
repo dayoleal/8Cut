@@ -170,6 +170,22 @@ struct ContentView: View {
                 Circle()
                     .foregroundColor(Color("darkGray"))
             )
+            
+            Button("Save"){
+                
+            }
+            .font(.title3)
+            .bold()
+            .frame(width: 70, height: 70)
+            .background(
+                Circle()
+                    .foregroundColor(Color("mediumGray"))
+            )
+            .padding(10)
+            .background(
+                Circle()
+                    .foregroundColor(Color("darkGray"))
+            )
         }
         .padding(.horizontal, 35)
     }

@@ -133,6 +133,15 @@ class EditorData: NSObject, PKToolPickerObserver {
         return UIImage(cgImage: cgImage)
     }
     
+    func exportAsData() async -> Data? {
+        do {
+            return try await markup?.dataRepresentation()
+        } catch {
+            print(error.localizedDescription)
+            return nil
+        }
+    }
+    
     /// Method to apply filters to the canvas
     func applyFilterToCanvas(_ filter: CIFilter, rect: CGRect) async {
         /// Capturing the current canvas state as an image
