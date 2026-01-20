@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct GridView: View {
-    var rows: Int = 4
-    var cols: Int = 2
+    var rows: Int = 2
+    var cols: Int = 4
     
     var body: some View {
         GeometryReader { geo in

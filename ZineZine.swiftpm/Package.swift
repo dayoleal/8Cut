@@ -23,14 +23,11 @@ let package = Package(
             appIcon: .placeholder(icon: .plane),
             accentColor: .presetColor(.green),
             supportedDeviceFamilies: [
-                .pad,
-                .phone
+                .pad
             ],
             supportedInterfaceOrientations: [
-                .portrait,
                 .landscapeRight,
                 .landscapeLeft,
-                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
             ],
             capabilities: [
                 .fileAccess(.pictureFolder, mode: .readWrite),

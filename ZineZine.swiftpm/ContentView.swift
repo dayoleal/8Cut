@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  ContentView.swift/Users/dayoleal/Desktop/Zine/ZineZine.swiftpm/ContentView.swift
 //  DrawingEditor
 //
 //  Created by Dayô Araújo on 08/01/26.
@@ -18,10 +18,13 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-            EditorView(data: data, size: .init(width: 356, height: 504))
-                .toolbar {
-                    toolItems()
+            ZStack {
+                EditorView(data: data, size: .init(width: 800, height: 548))
+                VStack {
+                    tools()
+                    Spacer()
                 }
+            }
         }
         .photosPicker(isPresented: $showImagePicker, selection: $photoItem)
         .onChange(of: photoItem) { oldValue, newValue in
@@ -39,83 +42,127 @@ struct ContentView: View {
     }
     
     @ViewBuilder
-    func toolItems() -> some View {
-        Button {
-            showImagePicker.toggle()
-            data.showPencilKitTools(showTools)
-        } label: {
-            Image(systemName: "photo.badge.plus")
-        }
-        
-        Button {
-            data.insertText(.init("Text"), rect: .zero)
-        } label: {
-            Image(systemName: "textformat.characters")
-        }
-        
-        Menu("shape") {
-            let rect = CGRect(origin: .zero, size: .init(width: 100, height: 100))
-            
-            Button {
-                let configuration = ShapeConfiguration(type: .rectangle, fillColor: UIColor.black.cgColor)
-                data.insertShape(configuration, rect: rect)
-            } label: {
-                Image(systemName: "rectangle")
-            }
-            
-            Button {
-                let configuration = ShapeConfiguration(type: .ellipse, fillColor: UIColor.black.cgColor)
-                data.insertShape(configuration, rect: rect)
-            } label: {
-                Image(systemName: "circle")
-            }
-            
-            Button {
-                let configuration = ShapeConfiguration(type: .chatBubble, fillColor: UIColor.black.cgColor)
-                data.insertShape(configuration, rect: rect)
-            } label: {
-                Image(systemName: "bubble")
-            }
-            
-            Button {
-                let configuration = ShapeConfiguration(type: .arrowShape, fillColor: UIColor.black.cgColor)
-                data.insertShape(configuration, rect: rect)
-            } label: {
-                Image(systemName: "arrow.left")
-            }
-            
-            Button {
-                let configuration = ShapeConfiguration(type: .line, fillColor: UIColor.black.cgColor)
-                data.insertShape(configuration, rect: rect)
-            } label: {
-                Image(systemName: "stroke.line.diagonal")
-            }
-        }
-        
-        Button {
-            showTools.toggle()
-            data.showPencilKitTools(showTools)
-        } label: {
-            Image(systemName: "pencil.and.scribble")
-        }
-        
-        Button {
-            Task {
-                let rect = CGRect(origin: .zero, size: .init(width: 350, height: 670))
-                if let image = await data.exportAsImage(rect, scale: 2) {
-                    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+    func tools() -> some View {
+        HStack {
+            HStack {
+                Button(action: { showImagePicker.toggle() }) { }
+                .buttonStyle(ToolButtons(symbol: "house"))
+                
+                Button(action: { showImagePicker.toggle() }) { }
+                .buttonStyle(ToolButtons(symbol: "photo.badge.plus"))
+                
+                Button(action: { data.insertText(.init("Text"), rect: .zero) }) { }
+                .buttonStyle(ToolButtons(symbol: "textformat.size"))
+                
+                Button(action: {
+                    showTools.toggle()
+                    data.showPencilKitTools(showTools)
+                }) { }
+                .buttonStyle(ToolButtons(symbol: "pencil.and.scribble"))
+                
+                Menu {
+                    let rect = CGRect(origin: .zero, size: .init(width: 100, height: 100))
+                    
+                    Button {
+                        let configuration = ShapeConfiguration(type: .rectangle, fillColor: UIColor.black.cgColor)
+                        data.insertShape(configuration, rect: rect)
+                    } label: {
+                        Image(systemName: "rectangle")
+                    }
+                    
+                    Button {
+                        let configuration = ShapeConfiguration(type: .ellipse, fillColor: UIColor.black.cgColor)
+                        data.insertShape(configuration, rect: rect)
+                    } label: {
+                        Image(systemName: "circle")
+                    }
+                    
+                    Button {
+                        let configuration = ShapeConfiguration(type: .chatBubble, fillColor: UIColor.black.cgColor)
+                        data.insertShape(configuration, rect: rect)
+                    } label: {
+                        Image(systemName: "bubble")
+                    }
+                    
+                    Button {
+                        let configuration = ShapeConfiguration(type: .arrowShape, fillColor: UIColor.black.cgColor)
+                        data.insertShape(configuration, rect: rect)
+                    } label: {
+                        Image(systemName: "arrow.left")
+                    }
+                    
+                    Button {
+                        let configuration = ShapeConfiguration(type: .line, fillColor: UIColor.black.cgColor)
+                        data.insertShape(configuration, rect: rect)
+                    } label: {
+                        Image(systemName: "stroke.line.diagonal")
+                    }
+                } label: {
+                    Image(systemName: "squareshape.controlhandles.on.squareshape.controlhandles")
+                        .font(.title2)
+                        .bold()
+                        .foregroundColor(Color("acidGreen"))
+                        .frame(width: 70, height: 70)
+                        .background(
+                            Circle()
+                                .foregroundColor(Color("mediumGray"))
+                        )
                 }
             }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
+            .padding(10)
+            .background(
+                Capsule()
+                    .foregroundColor(Color("darkGray"))
+            )
+            
+            Spacer()
+            
+            Button {
+                Task {
+                    let rect = CGRect(origin: .zero, size: .init(width: 350, height: 670))
+                    if let image = await data.exportAsImage(rect, scale: 2) {
+                        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+                    }
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.title2)
+                    .bold()
+                    .foregroundColor(Color("acidGreen"))
+                    .frame(width: 70, height: 70)
+                    .background(
+                        Circle()
+                            .foregroundColor(Color("mediumGray"))
+                    )
+            }
+            .padding(10)
+            .background(
+                Circle()
+                    .foregroundColor(Color("darkGray"))
+            )
         }
+        .padding(.horizontal, 35)
     }
 }
 
-#Preview {
-    if #available(iOS 26.0, *) {
-        ContentView()
-    } else {
-        // Fallback on earlier versions
+struct ToolButtons: ButtonStyle {
+    var symbol: String
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+        Image(systemName: symbol)
+            .font(.title2)
+            .bold()
+            .foregroundColor(Color("acidGreen"))
+            .frame(width: 70, height: 70)
+            .background(
+                Circle()
+                    .foregroundColor(Color("mediumGray"))
+            )
     }
+}
+
+@available(iOS 26.0, *)
+#Preview (traits: .landscapeLeft){
+    ContentView()
 }

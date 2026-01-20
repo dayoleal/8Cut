@@ -4,7 +4,6 @@
 //
 //  Created by Dayô Araújo on 08/01/26.
 //
-
 import SwiftUI
 import PaperKit
 import PencilKit
@@ -24,6 +23,7 @@ struct EditorView: View {
             if let controller = data.controller {
                 PaperControllerView(controller: controller)
                     .shadow(radius: 10)
+                    .frame(width: 800, height: 548)
                 
                 GridView()
                     .frame(width: size.width, height: size.height)
@@ -35,6 +35,12 @@ struct EditorView: View {
             }
         }
         .ignoresSafeArea()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Image("background")
+                .resizable()
+                .scaledToFill()
+        )
     }
 }
 
@@ -42,22 +48,16 @@ struct EditorView: View {
 /// Paper controller view
 fileprivate struct PaperControllerView: UIViewControllerRepresentable {
     var controller: PaperMarkupViewController
-    var backgroundColor: UIColor = .lightGray
     
     func makeUIViewController(context: Context) -> PaperMarkupViewController {
-        controller.view.backgroundColor = backgroundColor
         return controller
     }
     
     func updateUIViewController(_ uiViewController: PaperMarkupViewController, context: Context) {
-        controller.view.backgroundColor = backgroundColor
     }
 }
 
-#Preview {
-    if #available(iOS 26.0, *) {
-        ContentView()
-    } else {
-        
-    }
+@available(iOS 26.0, *)
+#Preview (traits: .landscapeLeft){
+    ContentView()
 }

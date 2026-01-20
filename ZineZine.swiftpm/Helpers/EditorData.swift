@@ -12,17 +12,17 @@ import PencilKit
 @available(iOS 26.0, *)
 @Observable
 @MainActor
-class EditorData {
+class EditorData: NSObject, PKToolPickerObserver {
     var controller: PaperMarkupViewController?
     var markup: PaperMarkup?
-    var toolPicker = PKToolPicker()
+    private var toolBehaviors: [String: PKTool] = [:]
     
     /// Initialization Method that creates an empty PaperKit rectangular canvas with a placeholder text
     func initializeController(_ rect: CGRect, placeholder: String = "Create!") {
         let controller = PaperMarkupViewController(supportedFeatureSet: .latest)
         let markup = PaperMarkup(bounds: rect)
         
-        /// This ensures that the canvas begins with an empty state whenever the method
+        /// Ensures that the canvas begins with an empty state whenever the method
         /// `initializeController` is invoked
         if let existingController = self.controller {
             existingController.markup = markup
@@ -72,10 +72,46 @@ class EditorData {
     }
     
     /// Method to show pencil kit tools, such as pens and pencils
+    /// and create custom tools with system shader behaviours
     func showPencilKitTools(_ isVisible: Bool) {
         guard let controller else { return }
         
-        controller.view.pencilKitResponderState.activeToolPicker = toolPicker
+        /// Tool Configurations that conform to the
+        ///  PKToolPickerCustomItem.Configuration and shader type
+        let toolDefinitions: [(id: String, name: String, tool: PKTool)] = [
+            ("spherographic.tool", "spherographic", PKInkingTool(.pen, color: .black)),
+            ("nanquin.tool", "nanquin", PKInkingTool(.monoline, color: .black)),
+            ("highlighter.tool", "highlighter", PKInkingTool(.marker, color: .yellow)),
+            ("eraser.tool", "eraser", PKEraserTool(.vector)),
+            ("pencil.tool", "pencil", PKInkingTool(.pencil, color: .black)),
+            ("crayon.tool", "crayon", PKInkingTool(.crayon, color: .black)),
+            ("pen.tool", "pen", PKInkingTool(.fountainPen, color: .black)),
+            ("brush.tool", "brush", PKInkingTool(.reed, color: .black))
+        ]
+        
+        var customItems: [PKToolPickerCustomItem] = []
+        
+        /// Configurations being applied to ensure the creation of
+        ///  each tool item
+        for index in toolDefinitions {
+            var config = PKToolPickerCustomItem.Configuration(identifier: index.id, name: index.name)
+            
+            config.imageProvider = { _ in
+                UIImage(named: index.name) ?? UIImage(systemName: "pencil.tip")!
+            }
+            
+            let item = PKToolPickerCustomItem(configuration: config)
+            customItems.append(item)
+            
+            toolBehaviors[index.id] = index.tool
+        }
+        
+        let picker = PKToolPicker(toolItems: customItems)
+        picker.overrideUserInterfaceStyle = .dark
+        
+        picker.addObserver(self)
+        
+        controller.view.pencilKitResponderState.activeToolPicker = picker
         controller.view.pencilKitResponderState.toolPickerVisibility = isVisible ? .visible : .hidden
         
         if isVisible {
@@ -83,6 +119,7 @@ class EditorData {
         }
     }
     
+    /// Method to export the canvas as an Image
     func exportAsImage(_ rect: CGRect, scale: CGFloat = 1) async -> UIImage? {
         guard let context = makeCGContext(size: rect.size, scale: scale),
               let markup = await controller?.markup else { return nil }
@@ -92,6 +129,9 @@ class EditorData {
         
         return UIImage(cgImage: cgImage)
     }
+    
+    /// Method to apply filters to the canvas
+    
     
     /// CGContext creation
     private func makeCGContext(size: CGSize, scale: CGFloat) -> CGContext? {
@@ -107,6 +147,45 @@ class EditorData {
         context.scaleBy(x: 1, y: -1)
         
         return context
+    }
+}
+
+/// Extension that identifies the tool that is selected and applies
+/// the appropriate shader based on the `toolBehaviours` dictionary
+@available(iOS 26.0, *)
+extension EditorData: PKToolPickerObserver {
+    func toolPickerSelectedToolDidChange(_ toolPicker: PKToolPicker) {
+        guard let controller = self.controller else { return }
+        
+        /// Storing the item selected by the user as a custom item
+        /// and getting the id of said tool in order to map the
+        /// shader behaviour
+        let customItem = toolPicker.selectedToolItem as! PKToolPickerCustomItem
+        let id = customItem.configuration.identifier
+        
+        let baseTool = toolBehaviors[id]
+        var finalTool: PKTool = baseTool!
+        
+        /// Guarantees that the tool behaviour is similar to a
+        ///  PKInkingTool
+        if let inkingTool = baseTool as? PKInkingTool {
+            finalTool = PKInkingTool(
+                inkingTool.inkType,
+                color: .black,
+                width: inkingTool.width
+            )
+        }
+        
+        /// Applying the shader behaviour to the active tool
+        controller.view.pencilKitResponderState.activeToolPicker?.selectedToolItem = customItem
+        
+        /// Identifying the canvas to which the shader must be applied
+        for index in controller.view.subviews {
+            if let canvas = index as? PKCanvasView {
+                canvas.tool = finalTool
+                break
+            }
+        }
     }
 }
 
