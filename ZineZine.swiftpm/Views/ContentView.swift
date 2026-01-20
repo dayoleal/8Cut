@@ -12,6 +12,8 @@ import PhotosUI
 @available(iOS 26.0, *)
 struct ContentView: View {
     @State private var data = EditorData()
+    @State private var showImagePicker: Bool = false
+    
     private let canvasSize = CGSize(width: 800, height: 548)
     private let exportRect = CGRect(x: 0, y: 0, width: 350, height: 670)
     

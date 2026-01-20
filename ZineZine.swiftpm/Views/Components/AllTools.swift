@@ -22,9 +22,6 @@ struct AllTools: View {
         NavigationStack {
             HStack {
                 HStack {
-                    Button(action: { }) { }
-                        .buttonStyle(ToolButtons(symbol: "house"))
-                    
                     Button(action: { showImagePicker.toggle() }) { }
                         .buttonStyle(ToolButtons(symbol: "photo.badge.plus"))
                     
