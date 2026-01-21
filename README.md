@@ -4,7 +4,7 @@
 
 ## About the Project
 
-This project emerged from researches about the materialization of creative ideation. After an intense phase of aesthetic investigation and reference mapping, **ZineZine** was conceived as a tool that connects the visual allure of analog collages with digital assets.
+This project emerged from researches about the materialization of creative ideation. After an intense phase of aesthetic investigation and reference mapping, **8-Cut** was conceived as a tool that connects the visual allure of analog collages with digital assets.
 
 ### Features
 * **Collage Editor:** A canvas-based interface for free manipulation of elements.
