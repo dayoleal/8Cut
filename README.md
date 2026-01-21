@@ -1,6 +1,6 @@
-# ZineZine 🎨
+# 8-Cut 🎨
 
-**ZineZine** is a digital creative platform designed to encourage fanzine production. The application allows users to explore their daily creativity through collage tools, image editing, and illustrations, to produce and export a classic eight-page magazine format.
+**8-Cut** is a digital creative platform designed to encourage fanzine production. The application allows users to explore their daily creativity through collage tools, image editing, and illustrations, to produce and export a classic eight-page magazine format.
 
 ## About the Project
 
