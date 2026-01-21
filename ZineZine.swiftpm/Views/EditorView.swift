@@ -13,20 +13,20 @@ struct EditorView: View {
     @State var data: EditorData
     var size: CGSize
     
-    init(data: EditorData, size: CGSize) {
-        self._data = .init(initialValue: data)
-        self.size = size
-    }
-    
     var body: some View {
         ZStack {
             if let controller = data.controller {
+                /// PaperKit layer that controls images, shapes and text
                 PaperControllerView(controller: controller)
-                    .shadow(radius: 10)
-                    .frame(width: 800, height: 548)
+                    .frame(width: size.width, height: size.height)
+                
+                /// PencilKit layer that controls drawings
+                CanvasRepresentable(canvasView: data.canvasView)
+                    .frame(width: size.width, height: size.height)
                 
                 GridView()
                     .frame(width: size.width, height: size.height)
+                    .allowsHitTesting(false)
             } else {
                 ProgressView()
                     .onAppear {
