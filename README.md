@@ -2,6 +2,8 @@
 
 **8-Cut** is a digital creative platform designed to encourage fanzine production. The application allows users to explore their daily creativity through collage tools, image editing, and illustrations, to produce and export a classic eight-page magazine format.
 
+<img width="1194" height="834" alt="Edit Screen" src="https://github.com/user-attachments/assets/39073bbe-565c-4666-aef8-467db0789dd9" />
+
 ## About the Project
 
 This project emerged from researches about the materialization of creative ideation. After an intense phase of aesthetic investigation and reference mapping, **8-Cut** was conceived as a tool that connects the visual allure of analog collages with digital assets.
