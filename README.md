@@ -26,9 +26,6 @@ image editing, and illustrations, to produce and export a classic eight-page mag
 - [Roadmap](#-roadmap)
 - [Tech Stack](#-tech-stack)
 - [Project Structure](#-project-structure)
-- [Getting Started](#-getting-started)
-- [Authors](#-authors)
-- [License](#-license)
 
 ---
 
