@@ -34,6 +34,7 @@ See <doc:Architecture>.
 - ``ReaderViewModel``
 - ``EditorViewModel``
 - ``ToolPaletteViewModel``
+- ``ExportViewModel``
 
 ### Views
 
@@ -50,6 +51,7 @@ See <doc:Architecture>.
 - ``PageDrawerView``
 - ``LayersPanelView``
 - ``TextEditorSheet``
+- ``ExportSheet``
 - ``ToolSheet``
 - ``DeskBackground``
 - ``ChromeIconButton``
@@ -61,3 +63,5 @@ See <doc:Architecture>.
 - ``ZinePackage``
 - ``PageRenderer``
 - ``ImageProcessing``
+- ``ZineExporter``
+- ``PrintLayout``

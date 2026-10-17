@@ -63,3 +63,16 @@ background removal save a new image in `assets/`; the old one stays so undo work
 
 A page can also have its own filter, applied over all layers. In the editor it is
 shown as an image over the canvas and hidden while drawing or moving a layer.
+
+### Printing
+
+``PrintLayout`` places the 8 pages on one landscape sheet (A4 or Letter):
+
+```
+│  5 ↻ │  4 ↻ │  3 ↻ │  2 ↻ │   top row upside down
+│  6   │  7   │ back │ cover│
+```
+
+Fold the sheet in half both ways, cut only the middle line between the two
+center columns, and fold again. ``ZineExporter`` builds the print sheet PDF,
+a PDF with one page per sheet and PNG images.

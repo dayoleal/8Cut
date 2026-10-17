@@ -36,7 +36,8 @@ final class ReaderViewModel {
     var isRenaming = false
     var draftTitle = ""
     var isConfirmingDeletion = false
-    var shareItems: ShareItems?
+    /// Export screen, shown while set.
+    var exportViewModel: ExportViewModel?
 
     @ObservationIgnored weak var router: ReaderRouting?
 
@@ -146,6 +147,6 @@ final class ReaderViewModel {
 
     func share() {
         document.saveNow()
-        shareItems = ShareItems(images: document.shareImages())
+        exportViewModel = ExportViewModel(document: document)
     }
 }

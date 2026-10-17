@@ -123,11 +123,6 @@ final class ZineDocument {
         return image
     }
 
-    /// All pages rendered at 1500 px wide for sharing.
-    func shareImages() -> [UIImage] {
-        zine.pages.map { PageRenderer.render(page: $0, in: self, scale: 1.5) }
-    }
-
     // MARK: - Drawing edits
 
     /// Stores the drawing after a stroke and adds an undo entry.

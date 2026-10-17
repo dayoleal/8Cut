@@ -49,8 +49,8 @@ struct ZineReaderView: View {
         } message: {
             Text("Esta ação não pode ser desfeita.")
         }
-        .sheet(item: $viewModel.shareItems) { items in
-            ActivityView(items: items.images)
+        .sheet(item: $viewModel.exportViewModel) { exportViewModel in
+            ExportSheet(viewModel: exportViewModel)
         }
     }
 

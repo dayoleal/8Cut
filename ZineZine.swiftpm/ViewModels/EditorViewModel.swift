@@ -67,7 +67,8 @@ final class EditorViewModel {
     var pageIndex = 0
     var isToolSheetExpanded = true
     var isPageDrawerOpen = false
-    var shareItems: ShareItems?
+    /// Export screen, shown while set.
+    var exportViewModel: ExportViewModel?
     /// Set by the view from `deviceScale`.
     var layoutScale: CGFloat = 1
     var isShowingLayers = false
@@ -292,7 +293,7 @@ final class EditorViewModel {
 
     func share() {
         document.saveNow()
-        shareItems = ShareItems(images: document.shareImages())
+        exportViewModel = ExportViewModel(document: document)
     }
 
     func close() {

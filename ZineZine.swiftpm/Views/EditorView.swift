@@ -53,8 +53,8 @@ struct EditorView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { viewModel.sceneDidLeaveForeground() }
         }
-        .sheet(item: $viewModel.shareItems) { items in
-            ActivityView(items: items.images)
+        .sheet(item: $viewModel.exportViewModel) { exportViewModel in
+            ExportSheet(viewModel: exportViewModel)
         }
         .overlay(alignment: .top) {
             if viewModel.isCuttingOut { cutoutBanner }
