@@ -49,6 +49,7 @@ See <doc:Architecture>.
 - ``PageCanvasHostView``
 - ``PageDrawerView``
 - ``LayersPanelView``
+- ``TextEditorSheet``
 - ``ToolSheet``
 - ``DeskBackground``
 - ``ChromeIconButton``
@@ -59,3 +60,4 @@ See <doc:Architecture>.
 - ``FileZineRepository``
 - ``ZinePackage``
 - ``PageRenderer``
+- ``ImageProcessing``

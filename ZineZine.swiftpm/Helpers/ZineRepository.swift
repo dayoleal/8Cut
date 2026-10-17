@@ -149,7 +149,7 @@ final class FileZineRepository: ZineRepository {
         if cover.paperColor != .paper { return true }
         return cover.layers.contains { layer in
             switch layer.content {
-            case .image:
+            case .image, .text:
                 return true
             case .drawing:
                 // An empty PKDrawing file is a few dozen bytes.

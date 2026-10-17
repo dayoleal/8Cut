@@ -38,6 +38,8 @@ struct PageCanvasView: UIViewRepresentable {
         view.onImageTransformBegan = { [weak viewModel] in viewModel?.canvasDidBeginImageTransform() }
         view.onImageTransformChanged = { [weak viewModel] in viewModel?.canvasDidChangeImageTransform($0) }
         view.onImageTransformEnded = { [weak viewModel] in viewModel?.canvasDidEndImageTransform() }
+        view.onImageDoubleTap = { [weak viewModel] in viewModel?.canvasDidDoubleTapImage() }
+        view.onCutoutFinished = { [weak viewModel] in viewModel?.canvasDidFinishCutout($0) }
         return view
     }
 
@@ -71,6 +73,8 @@ struct PageCanvasView: UIViewRepresentable {
                             opacity: image?.opacity ?? 1,
                             isVisible: image?.isVisible ?? false,
                             isEditable: image?.isEditable ?? false)
+        view.setCuttingOut(configuration.isCuttingOut)
+        view.setPageFilterOverlay(configuration.pageFilterOverlay)
     }
 }
 

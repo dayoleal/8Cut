@@ -23,10 +23,10 @@ struct PageComposites {
     var above: UIImage?
 }
 
-/// Active image layer shown on the canvas.
+/// Active image or text layer shown on the canvas.
 struct ActiveImageLayer {
     var image: UIImage
-    var content: ImageLayerContent
+    var content: LayerFrame
     var opacity: CGFloat
     var isVisible: Bool
     var isEditable: Bool
@@ -44,8 +44,11 @@ struct PageCanvasConfiguration {
     var activeLayerOpacity: CGFloat
     var isActiveLayerEditable: Bool
     var composites: PageComposites
-    /// Set when the active layer is an image.
+    /// Set when the active layer is an image or a text.
     var activeImage: ActiveImageLayer?
+    var isCuttingOut: Bool
+    /// Whole page with the page filter, shown over the canvas. `nil` without a filter.
+    var pageFilterOverlay: UIImage?
     /// Space taken by the toolbars over the canvas.
     var fitInsets: UIEdgeInsets
 }
@@ -76,6 +79,12 @@ final class EditorViewModel {
     /// Layer being renamed in the layers panel.
     var renamingLayerID: UUID?
     var layerDraftName = ""
+    /// Draws a freehand path on the canvas to cut out the active image.
+    var isCuttingOut = false
+    /// Shows a progress indicator while removing a background.
+    var isProcessingImage = false
+    /// Text being edited in the text sheet.
+    var editingText: TextLayerContent?
 
     /// Called when undo/redo changes the drawing of the active layer.
     @ObservationIgnored var onActiveDrawingReplaced: ((PKDrawing) -> Void)?
@@ -87,6 +96,15 @@ final class EditorViewModel {
     @ObservationIgnored private var compositeCache: (key: CompositeKey, value: PageComposites)?
     /// Page before a slider or gesture started, for a single undo entry.
     @ObservationIgnored private var pageBeforeLiveChange: ZinePage?
+    @ObservationIgnored private var editingTextLayerID: UUID?
+    @ObservationIgnored private var textImageCache: (content: TextLayerContent, image: UIImage)?
+    @ObservationIgnored private var filterOverlayCache: (key: FilterOverlayKey, image: UIImage)?
+
+    /// Cache key of the page filter overlay.
+    private struct FilterOverlayKey: Equatable {
+        var page: ZinePage
+        var drawingRevisions: [Int]
+    }
 
     /// Cache key of the composites. Leaves out the active layer, so moving an
     /// image or drawing does not render the other layers again.
@@ -144,13 +162,12 @@ final class EditorViewModel {
         let page = currentPage
         let activeLayer = page.layers.first { $0.id == activeLayerID }
         var activeImage: ActiveImageLayer?
-        if let activeLayer, case .image(let content) = activeLayer.content,
-           let image = document.image(named: content.assetName) {
+        if let activeLayer, let frame = activeLayer.frame, let image = movableImage(for: activeLayer) {
             activeImage = ActiveImageLayer(image: image,
-                                           content: content,
+                                           content: frame,
                                            opacity: CGFloat(activeLayer.opacity),
                                            isVisible: activeLayer.isVisible,
-                                           isEditable: !activeLayer.isLocked)
+                                           isEditable: !activeLayer.isLocked && !isCuttingOut)
         }
         return PageCanvasConfiguration(
             pageIndex: pageIndex,
@@ -164,11 +181,34 @@ final class EditorViewModel {
             isActiveLayerEditable: (activeLayer?.isDrawing ?? false) && !(activeLayer?.isLocked ?? true),
             composites: composites(for: page),
             activeImage: activeImage,
+            isCuttingOut: isCuttingOut,
+            pageFilterOverlay: pageFilterOverlay(for: page),
             fitInsets: UIEdgeInsets(top: 130 * layoutScale,
                                     left: 32 * layoutScale,
                                     bottom: (isToolSheetExpanded ? 150 : 60) * layoutScale,
                                     right: rightInset * layoutScale)
         )
+    }
+
+    /// Renders the whole page with its filter, cached until the page changes.
+    private func pageFilterOverlay(for page: ZinePage) -> UIImage? {
+        guard page.filter != .none else { return nil }
+        _ = document.contentRevision
+        let key = FilterOverlayKey(page: page,
+                                   drawingRevisions: page.layers.map { document.drawingRevision(for: $0.id) })
+        if let cache = filterOverlayCache, cache.key == key { return cache.image }
+        let image = PageRenderer.render(page: page, in: document, scale: 1.5)
+        filterOverlayCache = (key, image)
+        return image
+    }
+
+    // MARK: Page filter
+
+    /// Filter of the current page.
+    var pageFilter: LayerFilter { currentPage.filter }
+
+    func setPageFilter(_ filter: LayerFilter) {
+        document.updatePage(pageIndex, actionName: "Filtro da página") { $0.filter = filter }
     }
 
     /// Space for the open drawer on the right.
@@ -289,15 +329,33 @@ final class EditorViewModel {
     func canvasDidChangeImageTransform(_ transform: LayerTransform) {
         guard let layerID = activeLayerID else { return }
         document.updatePageLive(pageIndex) { page in
-            guard let index = page.layers.firstIndex(where: { $0.id == layerID }),
-                  case .image(var content) = page.layers[index].content else { return }
-            content.transform = transform
-            page.layers[index].content = .image(content)
+            guard let index = page.layers.firstIndex(where: { $0.id == layerID }) else { return }
+            page.layers[index].setTransform(transform)
         }
     }
 
     func canvasDidEndImageTransform() {
-        endLiveChange(actionName: "Mover imagem")
+        endLiveChange(actionName: activeLayer?.isText == true ? "Mover texto" : "Mover imagem")
+    }
+
+    /// Double tap on the selected layer: edits the text.
+    func canvasDidDoubleTapImage() {
+        if let id = activeLayerID, activeLayer?.isText == true { beginEditingText(id) }
+    }
+
+    /// Cuts the active image along a path drawn on the canvas.
+    /// - Parameter points: Path in page coordinates.
+    func canvasDidFinishCutout(_ points: [CGPoint]) {
+        isCuttingOut = false
+        guard let layer = activeLayer, case .image(let content) = layer.content,
+              let image = document.image(named: content.assetName) else { return }
+        let imagePoints = points.map { imagePoint(fromPage: $0, content: content, imageSize: image.size) }
+        guard let result = ImageProcessing.cutOut(image, along: imagePoints) else { return }
+        do {
+            try document.replaceImage(ofLayer: layer.id, onPage: pageIndex, with: result, actionName: "Recortar")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: Layers
@@ -385,6 +443,11 @@ final class EditorViewModel {
         updateLayer(id, actionName: "Bloquear camada") { $0.isLocked.toggle() }
     }
 
+    func setFilter(_ filter: LayerFilter) {
+        guard let id = activeLayerID else { return }
+        updateLayer(id, actionName: "Filtro") { $0.filter = filter }
+    }
+
     func setBlendMode(_ mode: LayerBlendMode) {
         guard let id = activeLayerID else { return }
         updateLayer(id, actionName: "Modo de mesclagem") { $0.blendMode = mode }
@@ -446,6 +509,35 @@ final class EditorViewModel {
 
     // MARK: Images
 
+    var canEditActiveImage: Bool {
+        activeLayer?.isImage == true && activeLayer?.isLocked == false && !isProcessingImage
+    }
+
+    func startCutout() {
+        guard canEditActiveImage else { return }
+        isShowingLayers = false
+        isCuttingOut = true
+    }
+
+    func cancelCutout() { isCuttingOut = false }
+
+    /// Keeps only the main subject of the active image.
+    func removeBackground() {
+        guard canEditActiveImage, let layer = activeLayer, case .image(let content) = layer.content,
+              let image = document.image(named: content.assetName) else { return }
+        let page = pageIndex
+        isProcessingImage = true
+        Task {
+            defer { isProcessingImage = false }
+            do {
+                let result = try await ImageProcessing.removingBackground(from: image)
+                try document.replaceImage(ofLayer: layer.id, onPage: page, with: result, actionName: "Remover fundo")
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     private func importSelectedPhoto() {
         guard let item = photoSelection else { return }
         Task {
@@ -478,7 +570,80 @@ final class EditorViewModel {
         set { if !newValue { errorMessage = nil } }
     }
 
+    // MARK: Text
+
+    /// Adds a text box to the current page and opens the text editor.
+    func addText() {
+        let id = document.addTextLayer(toPage: pageIndex)
+        selectLayer(id)
+        beginEditingText(id)
+    }
+
+    func beginEditingText(_ id: UUID) {
+        guard let layer = currentPage.layers.first(where: { $0.id == id }),
+              case .text(let content) = layer.content else { return }
+        editingTextLayerID = id
+        editingText = content
+    }
+
+    /// Saves the text sheet changes as one undo step.
+    func commitTextEditing() {
+        defer { cancelTextEditing() }
+        guard let id = editingTextLayerID, var content = editingText else { return }
+        content.height = PageRenderer.textHeight(content)
+        updateLayer(id, actionName: "Editar texto") { $0.content = .text(content) }
+    }
+
+    func cancelTextEditing() {
+        editingText = nil
+        editingTextLayerID = nil
+    }
+
+    /// Non-optional access to the text being edited, for the sheet bindings.
+    var editingTextContent: TextLayerContent {
+        get {
+            editingText ?? TextLayerContent(text: "", font: .typewriter, fontSize: 72, color: .black,
+                                            alignment: .center, width: 700, height: 0,
+                                            transform: LayerTransform(centerX: 0, centerY: 0))
+        }
+        set { if editingText != nil { editingText = newValue } }
+    }
+
+    var isEditingText: Bool {
+        get { editingText != nil }
+        set { if !newValue { cancelTextEditing() } }
+    }
+
     // MARK: Private
+
+    /// Image shown on the canvas for the active image or text layer.
+    private func movableImage(for layer: ZineLayer) -> UIImage? {
+        switch layer.content {
+        case .drawing:
+            return nil
+        case .image(let content):
+            return document.image(named: content.assetName, filter: layer.filter)
+        case .text(var content):
+            // The transform only moves the view, so it is left out of the cache key.
+            content.transform = LayerTransform(centerX: 0, centerY: 0)
+            if let cache = textImageCache, cache.content == content { return cache.image }
+            let image = PageRenderer.textImage(content, scale: 3)
+            textImageCache = (content, image)
+            return image
+        }
+    }
+
+    /// Converts a page point to a point in the image of an image layer.
+    private func imagePoint(fromPage point: CGPoint, content: ImageLayerContent, imageSize: CGSize) -> CGPoint {
+        let transform = content.transform
+        var x = point.x - transform.centerX
+        var y = point.y - transform.centerY
+        let cosine = cos(-transform.rotation), sine = sin(-transform.rotation)
+        (x, y) = (x * cosine - y * sine, x * sine + y * cosine)
+        x = x / transform.scale + content.width / 2
+        y = y / transform.scale + content.height / 2
+        return CGPoint(x: x * imageSize.width / content.width, y: y * imageSize.height / content.height)
+    }
 
     private func layerIndex(_ id: UUID) -> Int? {
         currentPage.layers.firstIndex { $0.id == id }

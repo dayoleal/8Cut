@@ -13,7 +13,8 @@ ViewModels/      AppViewModel, GalleryViewModel, ReaderViewModel,
 Views/           RootView, GalleryView, ZineReaderView, EditorView
   Components/    BookSpreadView, BookCoverView, ToolSheet, PageDrawerView,
                  PageCanvasView, DeskBackground, ...
-Helpers/         ZineRepository, ZinePackage, PageRenderer, ViewExtension,
+Helpers/         ZineRepository, ZinePackage, PageRenderer, ImageProcessing,
+                 ViewExtension,
                  PreviewData
 ```
 
@@ -53,3 +54,12 @@ before and after; other edits store a copy of the page.
 In the editor only the active layer is a `PKCanvasView`. The layers below and
 above it are rendered to images by ``PageRenderer``, which is also used for
 thumbnails, the reader and sharing.
+
+### Filters and cutouts
+
+Filters are stored per layer and applied by ``ImageProcessing`` when the page is
+rendered, so the original drawing or image is never changed. Cutouts and
+background removal save a new image in `assets/`; the old one stays so undo works.
+
+A page can also have its own filter, applied over all layers. In the editor it is
+shown as an image over the canvas and hidden while drawing or moving a layer.

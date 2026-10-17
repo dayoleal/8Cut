@@ -120,22 +120,61 @@ struct LayersPanelView: View {
                 .tint(Color.acidGreen)
 
             Menu {
+                ForEach(LayerFilter.allCases) { filter in
+                    Button(filter.displayName) { viewModel.setFilter(filter) }
+                }
+            } label: {
+                settingLabel("Filtro", value: viewModel.activeLayer?.filter.displayName ?? "")
+            }
+
+            Menu {
                 ForEach(LayerBlendMode.allCases) { mode in
                     Button(mode.displayName) { viewModel.setBlendMode(mode) }
                 }
             } label: {
-                HStack {
-                    Text("Mesclagem")
-                    Spacer()
-                    Text(viewModel.activeLayer?.blendMode.displayName ?? "")
-                        .foregroundStyle(Color.acidGreen)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .foregroundStyle(Color.acidGreen)
-                }
-                .font(.system(size: 12 * deviceScale))
-                .foregroundStyle(.white.opacity(0.85))
+                settingLabel("Mesclagem", value: viewModel.activeLayer?.blendMode.displayName ?? "")
             }
+
+            layerActions
         }
+    }
+
+    @ViewBuilder
+    private var layerActions: some View {
+        if viewModel.activeLayer?.isImage == true {
+            HStack(spacing: 8 * deviceScale) {
+                actionButton("Recortar", systemImage: "scissors") { viewModel.startCutout() }
+                actionButton("Remover fundo", systemImage: "person.crop.rectangle") { viewModel.removeBackground() }
+            }
+            .disabled(!viewModel.canEditActiveImage)
+        } else if viewModel.activeLayer?.isText == true, let id = viewModel.activeLayerID {
+            actionButton("Editar texto", systemImage: "character.cursor.ibeam") { viewModel.beginEditingText(id) }
+        }
+    }
+
+    private func actionButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 11 * deviceScale, weight: .semibold))
+                .foregroundStyle(Color.acidGreen)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8 * deviceScale)
+                .background(RoundedRectangle(cornerRadius: 10 * deviceScale).fill(Color.chromeMedium))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func settingLabel(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundStyle(Color.acidGreen)
+            Image(systemName: "chevron.up.chevron.down")
+                .foregroundStyle(Color.acidGreen)
+        }
+        .font(.system(size: 12 * deviceScale))
+        .foregroundStyle(.white.opacity(0.85))
     }
 
     // MARK: - Context menu
@@ -179,7 +218,7 @@ struct LayerRow: View {
                 Text(layer.name)
                     .font(.system(size: 12 * deviceScale, weight: isActive ? .bold : .regular))
                     .lineLimit(1)
-                Text(layer.isDrawing ? "Desenho" : "Imagem")
+                Text(layer.isDrawing ? "Desenho" : (layer.isText ? "Texto" : "Imagem"))
                     .font(.system(size: 9 * deviceScale))
                     .foregroundStyle(.white.opacity(0.5))
             }

@@ -23,8 +23,13 @@ final class PageCanvasHostView: UIView {
     private let paperView = UIView()
     private let belowView = UIImageView()
     private let aboveView = UIImageView()
-    /// Active image layer, moved with pan, pinch and rotation.
+    /// Active image or text layer, moved with pan, pinch and rotation.
     private let imageLayerView = UIImageView()
+    /// Shown while cutting out an image.
+    private let cutoutView = CutoutOverlayView()
+    /// Whole page with the page filter. Hidden while drawing or moving a layer,
+    /// so the live content is visible.
+    private let filterView = UIImageView()
 
     // MARK: Callbacks
 
@@ -36,6 +41,9 @@ final class PageCanvasHostView: UIView {
     var onImageTransformBegan: (() -> Void)?
     var onImageTransformChanged: ((LayerTransform) -> Void)?
     var onImageTransformEnded: (() -> Void)?
+    var onImageDoubleTap: (() -> Void)?
+    /// Cutout path in page coordinates.
+    var onCutoutFinished: (([CGPoint]) -> Void)?
 
     // MARK: State
 
@@ -43,8 +51,9 @@ final class PageCanvasHostView: UIView {
     private var isLoadingDrawing = false
     private var lastLayoutSize: CGSize = .zero
     private var fitZoomScale: CGFloat = 1
-    private var imageContent: ImageLayerContent?
+    private var imageContent: LayerFrame?
     private var activeImageGestures = 0
+    private var isEditingLive = false
 
     /// Space taken by the toolbars. The page is fitted in the remaining area.
     var fitInsets: UIEdgeInsets = .zero {
@@ -106,6 +115,12 @@ final class PageCanvasHostView: UIView {
         addSubview(canvasView)
         addSubview(imageLayerView)
         addSubview(aboveView)
+        addSubview(filterView)
+        addSubview(cutoutView)
+        filterView.contentMode = .scaleToFill
+        filterView.isUserInteractionEnabled = false
+        cutoutView.isHidden = true
+        cutoutView.onFinish = { [weak self] points in self?.finishCutout(points) }
 
         installGestures()
     }
@@ -141,6 +156,10 @@ final class PageCanvasHostView: UIView {
             gesture.delegate = self
             imageLayerView.addGestureRecognizer(gesture)
         }
+
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleImageDoubleTap))
+        doubleTap.numberOfTapsRequired = 2
+        imageLayerView.addGestureRecognizer(doubleTap)
     }
 
     // MARK: - Layout & zoom
@@ -148,6 +167,7 @@ final class PageCanvasHostView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         canvasView.frame = bounds
+        cutoutView.frame = bounds
         if bounds.size != lastLayoutSize, bounds.width > 0, bounds.height > 0 {
             lastLayoutSize = bounds.size
             fitToScreen(animated: false)
@@ -201,6 +221,7 @@ final class PageCanvasHostView: UIView {
         paperView.frame = frame
         belowView.frame = frame
         aboveView.frame = frame
+        filterView.frame = frame
         paperView.layer.shadowPath = UIBezierPath(rect: paperView.bounds).cgPath
         layoutImageLayer()
     }
@@ -243,7 +264,7 @@ final class PageCanvasHostView: UIView {
     }
 
     /// Shows the active image layer, or hides it when `image` is `nil`.
-    func setActiveImage(_ image: UIImage?, content: ImageLayerContent?,
+    func setActiveImage(_ image: UIImage?, content: LayerFrame?,
                         opacity: CGFloat, isVisible: Bool, isEditable: Bool) {
         imageLayerView.image = image
         imageLayerView.isHidden = image == nil || !isVisible
@@ -260,6 +281,47 @@ final class PageCanvasHostView: UIView {
 
     @objc private func handleUndoTap() { onUndoGesture?() }
     @objc private func handleRedoTap() { onRedoGesture?() }
+
+    /// Sets the filtered page shown over the canvas. `nil` hides it.
+    func setPageFilterOverlay(_ image: UIImage?) {
+        guard filterView.image !== image else { return }
+        filterView.image = image
+        if !isEditingLive { filterView.alpha = 1 }
+    }
+
+    /// Hides the filtered page while the user is drawing or moving a layer.
+    /// When editing ends it comes back with the next render, or after a short delay
+    /// if nothing changed.
+    private func setEditingLive(_ isEditing: Bool) {
+        isEditingLive = isEditing
+        if isEditing {
+            UIView.animate(withDuration: 0.12) { self.filterView.alpha = 0 }
+        } else {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard let self, !self.isEditingLive else { return }
+                UIView.animate(withDuration: 0.15) { self.filterView.alpha = 1 }
+            }
+        }
+    }
+
+    /// Shows or hides the cutout overlay.
+    func setCuttingOut(_ isCuttingOut: Bool) {
+        guard cutoutView.isHidden == isCuttingOut else { return }
+        cutoutView.isHidden = !isCuttingOut
+        cutoutView.reset()
+    }
+
+    private func finishCutout(_ points: [CGPoint]) {
+        let zoom = canvasView.zoomScale
+        let pagePoints = points.map { point in
+            CGPoint(x: (point.x + canvasView.contentOffset.x) / zoom,
+                    y: (point.y + canvasView.contentOffset.y) / zoom)
+        }
+        onCutoutFinished?(pagePoints)
+    }
+
+    @objc private func handleImageDoubleTap() { onImageDoubleTap?() }
 
     @objc private func handleImagePan(_ gesture: UIPanGestureRecognizer) {
         updateImage(with: gesture) { transform, zoom in
@@ -291,11 +353,17 @@ final class PageCanvasHostView: UIView {
         guard var content = imageContent else { return }
         switch gesture.state {
         case .began:
-            if activeImageGestures == 0 { onImageTransformBegan?() }
+            if activeImageGestures == 0 {
+                setEditingLive(true)
+                onImageTransformBegan?()
+            }
             activeImageGestures += 1
         case .ended, .cancelled, .failed:
             activeImageGestures = max(activeImageGestures - 1, 0)
-            if activeImageGestures == 0 { onImageTransformEnded?() }
+            if activeImageGestures == 0 {
+                setEditingLive(false)
+                onImageTransformEnded?()
+            }
             return
         default:
             break
@@ -317,6 +385,14 @@ extension PageCanvasHostView: PKCanvasViewDelegate {
         lastDrawing = drawing
         canvasView.undoManager?.removeAllActions()
         onDrawingCommitted?(drawing)
+    }
+
+    func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+        setEditingLive(true)
+    }
+
+    func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+        setEditingLive(false)
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -355,6 +431,73 @@ extension PageCanvasHostView: UIPencilInteractionDelegate {
         default:
             onPencilDoubleTap?()
         }
+    }
+}
+
+// MARK: - CutoutOverlayView
+
+/// Captures a freehand closed path over the canvas and draws it as a dashed line.
+final class CutoutOverlayView: UIView {
+    /// Path points in this view's coordinates, sent when the touch ends.
+    var onFinish: (([CGPoint]) -> Void)?
+
+    private var points: [CGPoint] = []
+    private let shapeLayer = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = UIColor.black.withAlphaComponent(0.25)
+        shapeLayer.strokeColor = UIColor(named: "acidGreen")?.cgColor
+        shapeLayer.fillColor = UIColor(named: "acidGreen")?.withAlphaComponent(0.15).cgColor
+        shapeLayer.lineWidth = 2
+        shapeLayer.lineDashPattern = [8, 6]
+        layer.addSublayer(shapeLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        shapeLayer.frame = bounds
+    }
+
+    func reset() {
+        points = []
+        shapeLayer.path = nil
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        points = [touch.location(in: self)]
+        updatePath()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let samples = event?.coalescedTouches(for: touch) ?? [touch]
+        points.append(contentsOf: samples.map { $0.location(in: self) })
+        updatePath()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let finished = points
+        reset()
+        if finished.count > 2 { onFinish?(finished) }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        reset()
+    }
+
+    private func updatePath() {
+        guard let first = points.first else { return }
+        let path = UIBezierPath()
+        path.move(to: first)
+        for point in points.dropFirst() { path.addLine(to: point) }
+        path.close()
+        shapeLayer.path = path.cgPath
     }
 }
 

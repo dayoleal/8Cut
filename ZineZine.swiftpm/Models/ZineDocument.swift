@@ -45,6 +45,7 @@ final class ZineDocument {
     @ObservationIgnored private var drawings: [UUID: PKDrawing] = [:]
     @ObservationIgnored private var drawingRevisions: [UUID: Int] = [:]
     @ObservationIgnored private var images: [String: UIImage] = [:]
+    @ObservationIgnored private var filteredImages: [String: UIImage] = [:]
     @ObservationIgnored private var dirtyDrawings: Set<UUID> = []
     @ObservationIgnored private var needsSave = false
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -99,6 +100,17 @@ final class ZineDocument {
         guard let image = UIImage(contentsOfFile: package.assetURL(named: name).path) else { return nil }
         images[name] = image
         return image
+    }
+
+    /// Imported image with a filter applied. Cached per asset and filter.
+    func image(named name: String, filter: LayerFilter) -> UIImage? {
+        guard filter != .none else { return image(named: name) }
+        let key = "\(name)|\(filter.rawValue)"
+        if let cached = filteredImages[key] { return cached }
+        guard let original = image(named: name) else { return nil }
+        let filtered = ImageProcessing.apply(filter, to: original)
+        filteredImages[key] = filtered
+        return filtered
     }
 
     /// Page rendered at 700 px wide for the reader. Cached per revision.
@@ -175,6 +187,46 @@ final class ZineDocument {
         let imageCount = zine.pages[index].layers.filter { !$0.isDrawing }.count
         let layer = ZineLayer(id: UUID(), name: "Imagem \(imageCount + 1)", content: .image(content))
         updatePage(index, actionName: "Adicionar imagem") { $0.layers.append(layer) }
+        return layer.id
+    }
+
+    /// Replaces the image of an image layer with a new asset (cutout, background
+    /// removal). The old asset stays in the package so undo still works.
+    func replaceImage(ofLayer layerID: UUID, onPage index: Int, with image: UIImage, actionName: String) throws {
+        let data = image.pngData()
+        guard let data else { throw ZineDocumentError.imageEncodingFailed }
+        let name = "\(UUID().uuidString).png"
+        try package.writeAsset(data, named: name)
+        images[name] = image
+        updatePage(index, actionName: actionName) { page in
+            guard let layerIndex = page.layers.firstIndex(where: { $0.id == layerID }),
+                  case .image(var content) = page.layers[layerIndex].content else { return }
+            content.assetName = name
+            page.layers[layerIndex].content = .image(content)
+        }
+    }
+
+    // MARK: - Text
+
+    /// Adds a text box on top of the page.
+    /// - Returns: ID of the new layer.
+    @discardableResult
+    func addTextLayer(toPage index: Int) -> UUID {
+        let page = ZineFormat.pageSize
+        var content = TextLayerContent(
+            text: "Texto",
+            font: .typewriter,
+            fontSize: 72,
+            color: .black,
+            alignment: .center,
+            width: page.width * 0.7,
+            height: 0,
+            transform: LayerTransform(centerX: page.width / 2, centerY: page.height / 2)
+        )
+        content.height = PageRenderer.textHeight(content)
+        let count = zine.pages[index].layers.filter(\.isText).count
+        let layer = ZineLayer(id: UUID(), name: "Texto \(count + 1)", content: .text(content))
+        updatePage(index, actionName: "Adicionar texto") { $0.layers.append(layer) }
         return layer.id
     }
 

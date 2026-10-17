@@ -56,6 +56,21 @@ struct EditorView: View {
         .sheet(item: $viewModel.shareItems) { items in
             ActivityView(items: items.images)
         }
+        .overlay(alignment: .top) {
+            if viewModel.isCuttingOut { cutoutBanner }
+        }
+        .overlay {
+            if viewModel.isProcessingImage {
+                ProgressView("Removendo fundo…")
+                    .padding(24)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.chromeDark))
+                    .tint(Color.acidGreen)
+                    .foregroundStyle(.white)
+            }
+        }
+        .sheet(isPresented: $viewModel.isEditingText) {
+            TextEditorSheet(viewModel: viewModel)
+        }
         .alert("Algo deu errado", isPresented: $viewModel.isShowingError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -84,8 +99,22 @@ struct EditorView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Adicionar imagem")
-            ChromeIconButton(systemName: "textformat.size", isEnabled: false) {}
+            ChromeIconButton(systemName: "textformat.size") { viewModel.addText() }
                 .accessibilityLabel("Adicionar texto")
+
+            Menu {
+                Picker("Filtro da página", selection: Binding(
+                    get: { viewModel.pageFilter },
+                    set: { viewModel.setPageFilter($0) }
+                )) {
+                    ForEach(LayerFilter.allCases) { filter in
+                        Text(filter.displayName).tag(filter)
+                    }
+                }
+            } label: {
+                ChromeIcon(systemName: "camera.filters", isActive: viewModel.pageFilter != .none)
+            }
+            .accessibilityLabel("Filtro da página")
 
             ChromeIconButton(systemName: "pencil.and.scribble") {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -109,6 +138,23 @@ struct EditorView: View {
                 .accessibilityLabel("Refazer")
         }
         .chromeCapsule()
+    }
+
+    private var cutoutBanner: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "scissors")
+                .foregroundStyle(Color.acidGreen)
+            Text("Desenhe em volta da parte que quer manter")
+                .foregroundStyle(.white)
+            Button("Cancelar") { viewModel.cancelCutout() }
+                .foregroundStyle(Color.acidGreen)
+                .bold()
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(Capsule().fill(Color.chromeDark))
+        .padding(.top, 100 * deviceScale)
     }
 
     private var keyboardShortcuts: some View {
