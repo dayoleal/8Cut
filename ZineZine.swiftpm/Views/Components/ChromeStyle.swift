@@ -9,25 +9,23 @@ import SwiftUI
 
 // MARK: - Colors
 
-/// Color tokens of the app chrome: near-black capsules, graphite buttons and
-/// acid-green icons.
+/// App colors.
 extension Color {
     static let acidGreen = Color("acidGreen")
     static let chromeDark = Color("darkGray")
     static let chromeMedium = Color("mediumGray")
     /// Selection highlight in the page drawer.
     static let chromeHighlight = Color(white: 0.4)
-    /// Paper shown for pages without content in the reader.
+    /// Paper color of empty pages in the reader.
     static let blankPaper = Color(white: 0.86)
 }
 
 // MARK: - Icons & buttons
 
-/// Circular icon used as the label of every chrome control
-/// (`Button`, `Menu`, `ShareLink`…).
+/// Circular icon used as the label of toolbar buttons and menus.
 struct ChromeIcon: View {
     let systemName: String
-    /// Inverts the colors to show a toggled-on state.
+    /// Inverts the colors for the "on" state.
     var isActive: Bool = false
     /// Diameter; `nil` uses 60 pt scaled by `deviceScale`.
     var size: CGFloat? = nil
@@ -44,7 +42,7 @@ struct ChromeIcon: View {
     }
 }
 
-/// A circular icon button.
+/// Circular icon button.
 struct ChromeIconButton: View {
     let systemName: String
     var isActive: Bool = false
@@ -63,7 +61,7 @@ struct ChromeIconButton: View {
     }
 }
 
-/// Standalone back button with a dark ring, used by the reader.
+/// Back button of the reader.
 struct ChromeBackButton: View {
     let action: () -> Void
 
@@ -82,7 +80,7 @@ struct ChromeBackButton: View {
 // MARK: - Containers
 
 extension View {
-    /// Wraps a group of chrome buttons in a dark capsule.
+    /// Dark capsule around a group of buttons.
     ///
     /// - Parameter padding: Space between the capsule and its buttons.
     func chromeCapsule(padding: CGFloat = 10) -> some View {
@@ -93,7 +91,39 @@ extension View {
     }
 }
 
-/// Slightly sinks a card while pressed, like picking a zine up from the desk.
+/// Tab of a drawer on the right edge of the editor (pages, layers).
+/// Shows the title only while closed.
+struct DrawerTab: View {
+    let systemName: String
+    let title: String
+    let isOpen: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4 * deviceScale) {
+                Image(systemName: systemName)
+                    .font(.system(size: 18 * deviceScale, weight: .semibold))
+                if !isOpen {
+                    Text(title)
+                        .font(.system(size: 12 * deviceScale, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Color.acidGreen)
+            .frame(width: (isOpen ? 48 : 70) * deviceScale, height: (isOpen ? 52 : 64) * deviceScale)
+            .background(
+                UnevenRoundedRectangle(topLeadingRadius: 16 * deviceScale,
+                                       bottomLeadingRadius: isOpen ? 0 : 16 * deviceScale)
+                    .fill(Color.chromeDark)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOpen ? "Aberto" : "Fechado")
+    }
+}
+
+/// Scales the card down while pressed.
 struct PressableCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

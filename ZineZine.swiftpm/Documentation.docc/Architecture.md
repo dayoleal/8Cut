@@ -1,67 +1,78 @@
 # Architecture
 
-How 8-Cut is organized.
+Folders and main types of the app.
 
 ## Overview
 
 ```
-MyApp.swift      Entry point; creates the repository and AppViewModel
+MyApp.swift      Entry point
 Models/          Zine, ZinePage, ZineLayer, DrawingTool, ZineSummary,
-                 ZineDocument (open zine in memory), EditHistory (undo/redo)
+                 ZineDocument, EditHistory
 ViewModels/      AppViewModel, GalleryViewModel, ReaderViewModel,
                  EditorViewModel, ToolPaletteViewModel
 Views/           RootView, GalleryView, ZineReaderView, EditorView
-  Components/    Reusable pieces: BookSpreadView, BookCoverView, ToolSheet,
-                 PageDrawerView, PageCanvasView, DeskBackground…
-Helpers/         ZineRepository, ZinePackage, PageRenderer, PreviewData
+  Components/    BookSpreadView, BookCoverView, ToolSheet, PageDrawerView,
+                 PageCanvasView, DeskBackground, ...
+Helpers/         ZineRepository, ZinePackage, PageRenderer, ImageProcessing,
+                 ViewExtension,
+                 PreviewData
 ```
 
 ### MVVM
 
-Each screen has a view and an `@Observable`, `@MainActor` view model.
-
-- **Views** render state and forward actions (`viewModel.undo()`,
-  `viewModel.createZine()`). The only state they keep is animation or focus,
-  such as the page-flip progress in ``BookSpreadView``.
-- **View models** hold the screen state, perform the actions, fetch data from
-  the ``ZineRepository`` and the ``ZineDocument``, and request navigation.
-- **Models** are value types plus ``ZineDocument``, the open zine shared by the
-  reader and the editor.
+Each screen has a view and an `@Observable` view model. Views show the state
+and call view model methods. View models hold the state, load data and handle
+navigation.
 
 ### Navigation
 
-``AppViewModel`` owns the current screen and creates the screen view models.
-They ask for navigation through small protocols (``GalleryRouting``,
-``ReaderRouting``, ``EditorRouting``) held as `weak` references, so screens do
-not know about each other.
+``AppViewModel`` keeps the current screen. The screen view models call
+``GalleryRouting``, ``ReaderRouting`` and ``EditorRouting`` to change screens.
 
 ### Storage
 
-``ZineRepository`` hides the file system; ``FileZineRepository`` stores one
-``ZinePackage`` per zine. Previews use the same implementation pointed at a
-temporary folder.
+``FileZineRepository`` saves each zine as a folder in `Documents/Zines`:
 
 ```
 <id>.zine/
-├── manifest.json             Zine
-├── thumbnail.jpg             cover for the gallery
-├── drawings/<layer>.drawing  PKDrawing data
-└── assets/<name>             imported images
+├── manifest.json
+├── thumbnail.jpg
+├── drawings/<layer>.drawing
+└── assets/<name>
 ```
 
-Writes are atomic and debounced (1.5 s); pending changes are flushed when
-leaving the editor or when the app goes to the background.
+Changes are saved 1.5 s after the last edit, when leaving the editor and when
+the app goes to the background.
 
 ### Undo and redo
 
-``EditHistory`` records every edit as an entry that can undo and redo itself.
-Drawing edits keep the strokes before and after; structural edits keep a
-snapshot of the whole ``ZinePage``. Entries remember their page so undo brings
-the user back to it.
+``EditHistory`` keeps one stack per open zine. Drawing edits store the drawing
+before and after; other edits store a copy of the page.
 
 ### Rendering
 
-The editor uses a "sandwich": only the active layer is a live `PKCanvasView`;
-layers below and above it are flattened by ``PageRenderer``. Thumbnails, the
-reader and sharing come from the same renderer, so what is on screen always
-matches what is exported.
+In the editor only the active layer is a `PKCanvasView`. The layers below and
+above it are rendered to images by ``PageRenderer``, which is also used for
+thumbnails, the reader and sharing.
+
+### Filters and cutouts
+
+Filters are stored per layer and applied by ``ImageProcessing`` when the page is
+rendered, so the original drawing or image is never changed. Cutouts and
+background removal save a new image in `assets/`; the old one stays so undo works.
+
+A page can also have its own filter, applied over all layers. In the editor it is
+shown as an image over the canvas and hidden while drawing or moving a layer.
+
+### Printing
+
+``PrintLayout`` places the 8 pages on one landscape sheet (A4 or Letter):
+
+```
+│  5 ↻ │  4 ↻ │  3 ↻ │  2 ↻ │   top row upside down
+│  6   │  7   │ back │ cover│
+```
+
+Fold the sheet in half both ways, cut only the middle line between the two
+center columns, and fold again. ``ZineExporter`` builds the print sheet PDF,
+a PDF with one page per sheet and PNG images.

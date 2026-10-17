@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// A closed zine as shown in the gallery: straight spine on the left, rounded
+/// Closed zine shown in the gallery, with page edges on the right.
 struct BookCoverView: View {
     let title: String
     /// Rendered cover. `nil` shows ``DefaultCoverArt``.
@@ -39,7 +39,7 @@ struct BookCoverView: View {
         }
     }
 
-    /// Two inside pages peeking out of the right edge.
+    /// Page edges on the right side.
     private var pageEdges: some View {
         ZStack {
             coverShape
@@ -54,7 +54,7 @@ struct BookCoverView: View {
     }
 }
 
-/// Cover of a zine whose cover page is still blank: red with lettered title.
+/// Default cover used while the cover page is blank.
 struct DefaultCoverArt: View {
     let title: String
 

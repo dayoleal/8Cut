@@ -15,13 +15,21 @@ final class ZineCanvasView: PKCanvasView {
     override var undoManager: UndoManager? { privateUndoManager }
 }
 
-/// UIKit canvas of a single page, built as a "sandwich":
+/// UIKit canvas of a page. The active layer is a live `PKCanvasView`; the layers
+/// below and above it are shown as rendered images.
 final class PageCanvasHostView: UIView {
-    /// The live PencilKit canvas.
+    /// Canvas of the active layer.
     let canvasView = ZineCanvasView()
     private let paperView = UIView()
     private let belowView = UIImageView()
     private let aboveView = UIImageView()
+    /// Active image or text layer, moved with pan, pinch and rotation.
+    private let imageLayerView = UIImageView()
+    /// Shown while cutting out an image.
+    private let cutoutView = CutoutOverlayView()
+    /// Whole page with the page filter. Hidden while drawing or moving a layer,
+    /// so the live content is visible.
+    private let filterView = UIImageView()
 
     // MARK: Callbacks
 
@@ -30,6 +38,12 @@ final class PageCanvasHostView: UIView {
     var onPencilDoubleTap: (() -> Void)?
     var onUndoGesture: (() -> Void)?
     var onRedoGesture: (() -> Void)?
+    var onImageTransformBegan: (() -> Void)?
+    var onImageTransformChanged: ((LayerTransform) -> Void)?
+    var onImageTransformEnded: (() -> Void)?
+    var onImageDoubleTap: (() -> Void)?
+    /// Cutout path in page coordinates.
+    var onCutoutFinished: (([CGPoint]) -> Void)?
 
     // MARK: State
 
@@ -37,8 +51,11 @@ final class PageCanvasHostView: UIView {
     private var isLoadingDrawing = false
     private var lastLayoutSize: CGSize = .zero
     private var fitZoomScale: CGFloat = 1
+    private var imageContent: LayerFrame?
+    private var activeImageGestures = 0
+    private var isEditingLive = false
 
-    /// Areas covered by floating chrome; the page is fitted into what is left.
+    /// Space taken by the toolbars. The page is fitted in the remaining area.
     var fitInsets: UIEdgeInsets = .zero {
         didSet {
             guard fitInsets != oldValue else { return }
@@ -79,6 +96,11 @@ final class PageCanvasHostView: UIView {
             overlay.isUserInteractionEnabled = false
         }
 
+        imageLayerView.contentMode = .scaleToFill
+        imageLayerView.isUserInteractionEnabled = true
+        imageLayerView.isHidden = true
+        imageLayerView.layer.borderColor = UIColor(named: "acidGreen")?.cgColor
+
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.overrideUserInterfaceStyle = .light
@@ -91,13 +113,20 @@ final class PageCanvasHostView: UIView {
         addSubview(paperView)
         addSubview(belowView)
         addSubview(canvasView)
+        addSubview(imageLayerView)
         addSubview(aboveView)
+        addSubview(filterView)
+        addSubview(cutoutView)
+        filterView.contentMode = .scaleToFill
+        filterView.isUserInteractionEnabled = false
+        cutoutView.isHidden = true
+        cutoutView.onFinish = { [weak self] points in self?.finishCutout(points) }
 
         installGestures()
     }
 
     private func installGestures() {
-        // Two fingers undo, three fingers redo (drawing-app convention).
+        // Two-finger tap undoes, three-finger tap redoes.
         let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndoTap))
         undoTap.numberOfTouchesRequired = 2
         undoTap.delegate = self
@@ -119,6 +148,18 @@ final class PageCanvasHostView: UIView {
         let pencilInteraction = UIPencilInteraction()
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleImagePan(_:)))
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handleImagePinch(_:)))
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleImageRotation(_:)))
+        for gesture in [pan, pinch, rotation] as [UIGestureRecognizer] {
+            gesture.delegate = self
+            imageLayerView.addGestureRecognizer(gesture)
+        }
+
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleImageDoubleTap))
+        doubleTap.numberOfTapsRequired = 2
+        imageLayerView.addGestureRecognizer(doubleTap)
     }
 
     // MARK: - Layout & zoom
@@ -126,6 +167,7 @@ final class PageCanvasHostView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         canvasView.frame = bounds
+        cutoutView.frame = bounds
         if bounds.size != lastLayoutSize, bounds.width > 0, bounds.height > 0 {
             lastLayoutSize = bounds.size
             fitToScreen(animated: false)
@@ -133,7 +175,7 @@ final class PageCanvasHostView: UIView {
         syncOverlays()
     }
 
-    /// Zooms so the whole page fits in the free area and centers it.
+    /// Zooms to fit the page in the free area and centers it.
     ///
     /// - Parameter animated: Whether to animate the change.
     func fitToScreen(animated: Bool) {
@@ -149,7 +191,7 @@ final class PageCanvasHostView: UIView {
         canvasView.setZoomScale(fit, animated: animated)
         canvasView.contentSize = CGSize(width: page.width * fit, height: page.height * fit)
         centerContent()
-        // With content smaller than the free area, the right offset is the inset itself.
+        // Content is smaller than the free area, so the offset is the inset.
         canvasView.setContentOffset(CGPoint(x: -canvasView.contentInset.left,
                                             y: -canvasView.contentInset.top),
                                     animated: animated)
@@ -168,7 +210,7 @@ final class PageCanvasHostView: UIView {
                                                right: fitInsets.right + insetX)
     }
 
-    /// Places paper and composites exactly over the page area of the canvas.
+    /// Moves the paper and rendered layers to the page position in the canvas.
     private func syncOverlays() {
         let page = ZineFormat.pageSize
         let zoom = canvasView.zoomScale
@@ -179,12 +221,28 @@ final class PageCanvasHostView: UIView {
         paperView.frame = frame
         belowView.frame = frame
         aboveView.frame = frame
+        filterView.frame = frame
         paperView.layer.shadowPath = UIBezierPath(rect: paperView.bounds).cgPath
+        layoutImageLayer()
+    }
+
+    /// Places the active image using its transform in page coordinates.
+    private func layoutImageLayer() {
+        guard let content = imageContent else { return }
+        let zoom = canvasView.zoomScale
+        let transform = content.transform
+        imageLayerView.transform = .identity
+        imageLayerView.bounds = CGRect(x: 0, y: 0, width: content.width * zoom, height: content.height * zoom)
+        imageLayerView.center = CGPoint(x: -canvasView.contentOffset.x + transform.centerX * zoom,
+                                        y: -canvasView.contentOffset.y + transform.centerY * zoom)
+        imageLayerView.transform = CGAffineTransform(rotationAngle: transform.rotation)
+            .scaledBy(x: transform.scale, y: transform.scale)
+        imageLayerView.layer.borderWidth = 2 / max(transform.scale, 0.01)
     }
 
     // MARK: - Content
 
-    /// Replaces the strokes on the canvas without recording an edit.
+    /// Sets the drawing without creating an edit.
     func load(drawing: PKDrawing) {
         isLoadingDrawing = true
         canvasView.drawing = drawing
@@ -193,7 +251,7 @@ final class PageCanvasHostView: UIView {
         canvasView.undoManager?.removeAllActions()
     }
 
-    /// Updates the flattened layers below and above the active one.
+    /// Sets the rendered layers below and above the active one.
     func setComposites(below: UIImage?, above: UIImage?) {
         belowView.image = below
         aboveView.image = above
@@ -205,10 +263,116 @@ final class PageCanvasHostView: UIView {
         canvasView.drawingGestureRecognizer.isEnabled = isEditable && isVisible
     }
 
+    /// Shows the active image layer, or hides it when `image` is `nil`.
+    func setActiveImage(_ image: UIImage?, content: LayerFrame?,
+                        opacity: CGFloat, isVisible: Bool, isEditable: Bool) {
+        imageLayerView.image = image
+        imageLayerView.isHidden = image == nil || !isVisible
+        imageLayerView.alpha = opacity
+        imageLayerView.isUserInteractionEnabled = isEditable
+        // The gesture already moved the view; don't reset it mid-gesture.
+        if activeImageGestures == 0 {
+            imageContent = content
+            layoutImageLayer()
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func handleUndoTap() { onUndoGesture?() }
     @objc private func handleRedoTap() { onRedoGesture?() }
+
+    /// Sets the filtered page shown over the canvas. `nil` hides it.
+    func setPageFilterOverlay(_ image: UIImage?) {
+        guard filterView.image !== image else { return }
+        filterView.image = image
+        if !isEditingLive { filterView.alpha = 1 }
+    }
+
+    /// Hides the filtered page while the user is drawing or moving a layer.
+    /// When editing ends it comes back with the next render, or after a short delay
+    /// if nothing changed.
+    private func setEditingLive(_ isEditing: Bool) {
+        isEditingLive = isEditing
+        if isEditing {
+            UIView.animate(withDuration: 0.12) { self.filterView.alpha = 0 }
+        } else {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard let self, !self.isEditingLive else { return }
+                UIView.animate(withDuration: 0.15) { self.filterView.alpha = 1 }
+            }
+        }
+    }
+
+    /// Shows or hides the cutout overlay.
+    func setCuttingOut(_ isCuttingOut: Bool) {
+        guard cutoutView.isHidden == isCuttingOut else { return }
+        cutoutView.isHidden = !isCuttingOut
+        cutoutView.reset()
+    }
+
+    private func finishCutout(_ points: [CGPoint]) {
+        let zoom = canvasView.zoomScale
+        let pagePoints = points.map { point in
+            CGPoint(x: (point.x + canvasView.contentOffset.x) / zoom,
+                    y: (point.y + canvasView.contentOffset.y) / zoom)
+        }
+        onCutoutFinished?(pagePoints)
+    }
+
+    @objc private func handleImageDoubleTap() { onImageDoubleTap?() }
+
+    @objc private func handleImagePan(_ gesture: UIPanGestureRecognizer) {
+        updateImage(with: gesture) { transform, zoom in
+            let translation = gesture.translation(in: self)
+            transform.centerX += translation.x / zoom
+            transform.centerY += translation.y / zoom
+            gesture.setTranslation(.zero, in: self)
+        }
+    }
+
+    @objc private func handleImagePinch(_ gesture: UIPinchGestureRecognizer) {
+        updateImage(with: gesture) { transform, _ in
+            transform.scale = min(max(transform.scale * gesture.scale, 0.05), 20)
+            gesture.scale = 1
+        }
+    }
+
+    @objc private func handleImageRotation(_ gesture: UIRotationGestureRecognizer) {
+        updateImage(with: gesture) { transform, _ in
+            transform.rotation += gesture.rotation
+            gesture.rotation = 0
+        }
+    }
+
+    /// Applies a gesture to the image transform and reports begin, change and end.
+    /// Pan, pinch and rotation can run together; begin/end are sent once.
+    private func updateImage(with gesture: UIGestureRecognizer,
+                             change: (inout LayerTransform, CGFloat) -> Void) {
+        guard var content = imageContent else { return }
+        switch gesture.state {
+        case .began:
+            if activeImageGestures == 0 {
+                setEditingLive(true)
+                onImageTransformBegan?()
+            }
+            activeImageGestures += 1
+        case .ended, .cancelled, .failed:
+            activeImageGestures = max(activeImageGestures - 1, 0)
+            if activeImageGestures == 0 {
+                setEditingLive(false)
+                onImageTransformEnded?()
+            }
+            return
+        default:
+            break
+        }
+        change(&content.transform, canvasView.zoomScale)
+        imageContent = content
+        layoutImageLayer()
+        onImageTransformChanged?(content.transform)
+    }
 }
 
 // MARK: - PKCanvasViewDelegate
@@ -223,6 +387,14 @@ extension PageCanvasHostView: PKCanvasViewDelegate {
         onDrawingCommitted?(drawing)
     }
 
+    func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+        setEditingLive(true)
+    }
+
+    func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+        setEditingLive(false)
+    }
+
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         syncOverlays()
     }
@@ -233,7 +405,7 @@ extension PageCanvasHostView: PKCanvasViewDelegate {
     }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
-        // Releasing a pinch below the fitted size snaps back to the fitted page.
+        // Zooming out below the fitted size returns to the fitted size.
         if scale < fitZoomScale {
             fitToScreen(animated: true)
         }
@@ -262,10 +434,76 @@ extension PageCanvasHostView: UIPencilInteractionDelegate {
     }
 }
 
+// MARK: - CutoutOverlayView
+
+/// Captures a freehand closed path over the canvas and draws it as a dashed line.
+final class CutoutOverlayView: UIView {
+    /// Path points in this view's coordinates, sent when the touch ends.
+    var onFinish: (([CGPoint]) -> Void)?
+
+    private var points: [CGPoint] = []
+    private let shapeLayer = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = UIColor.black.withAlphaComponent(0.25)
+        shapeLayer.strokeColor = UIColor(named: "acidGreen")?.cgColor
+        shapeLayer.fillColor = UIColor(named: "acidGreen")?.withAlphaComponent(0.15).cgColor
+        shapeLayer.lineWidth = 2
+        shapeLayer.lineDashPattern = [8, 6]
+        layer.addSublayer(shapeLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        shapeLayer.frame = bounds
+    }
+
+    func reset() {
+        points = []
+        shapeLayer.path = nil
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        points = [touch.location(in: self)]
+        updatePath()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let samples = event?.coalescedTouches(for: touch) ?? [touch]
+        points.append(contentsOf: samples.map { $0.location(in: self) })
+        updatePath()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let finished = points
+        reset()
+        if finished.count > 2 { onFinish?(finished) }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        reset()
+    }
+
+    private func updatePath() {
+        guard let first = points.first else { return }
+        let path = UIBezierPath()
+        path.move(to: first)
+        for point in points.dropFirst() { path.addLine(to: point) }
+        path.close()
+        shapeLayer.path = path.cgPath
+    }
+}
+
 // MARK: - PencilTouchDetector
 
-/// Watches touches without ever recognizing; reports when an Apple Pencil
-/// touches the screen so the editor can switch to "only Pencil draws".
+/// Gesture recognizer that never recognizes. Reports Apple Pencil touches.
 final class PencilTouchDetector: UIGestureRecognizer {
     var onPencil: (() -> Void)?
 

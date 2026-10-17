@@ -7,22 +7,17 @@
 
 import SwiftUI
 
-/// The pencil case at the bottom of the editor.
-///
-/// Every instrument lies side by side in the tray with its artwork cut by the
-/// bottom edge of the screen; the one in hand is lifted. Next to it are the
-/// quick colors and the "…" options. Measurements come from the 11-inch iPad
-/// design and are multiplied by ``scale``, so the sheet keeps its proportions
-/// on every iPad and still fits in portrait.
+/// Tool tray at the bottom of the editor. Sizes are in points on the 11-inch iPad
+/// and multiplied by ``scale``.
 struct ToolSheet: View {
     @Bindable var viewModel: EditorViewModel
 
     private var tools: ToolPaletteViewModel { viewModel.tools }
 
-    /// Design width of the sheet content on the 11-inch iPad, in points.
+    /// Content width on the 11-inch iPad, in points.
     private static let designContentWidth: CGFloat = 710
 
-    /// Device scale, reduced when the window is too narrow for the whole tray.
+    /// `deviceScale`, reduced when the window is too narrow for the tray.
     private var scale: CGFloat {
         let fitting = (width - 48) / Self.designContentWidth
         return max(min(deviceScale, fitting), 0.5)
@@ -163,17 +158,16 @@ struct ToolSheet: View {
 
 // MARK: - TrayItemView
 
-/// An instrument lying in the tray. Its artwork runs past the bottom edge of
-/// the screen; it is lifted when in hand.
+/// Tool image in the tray. Moves up when selected.
 struct TrayItemView: View {
-    /// Height of the tray area on the 11-inch iPad, in points.
+    /// Tray height on the 11-inch iPad, in points.
     static let visibleHeight: CGFloat = 90
 
     let asset: String
-    /// Rendered size, following the artwork's aspect ratio.
+    /// Image size.
     let width: CGFloat
     let height: CGFloat
-    /// How much the instrument is raised.
+    /// Upward offset.
     let lift: CGFloat
     let action: () -> Void
 
@@ -193,7 +187,7 @@ struct TrayItemView: View {
 
 // MARK: - ToolOptionsView
 
-/// Content of the "…" popover: width, opacity and finger drawing.
+/// Options popover: width, opacity and finger drawing.
 struct ToolOptionsView: View {
     @Bindable var tools: ToolPaletteViewModel
     

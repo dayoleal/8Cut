@@ -7,8 +7,7 @@
 
 import SwiftUI
 
-/// Reading mode: the zine lying on the desk, to leaf through before editing,
-/// sharing or deleting it. Renders ``ReaderViewModel`` state.
+/// Reader screen.
 struct ZineReaderView: View {
     @Bindable var viewModel: ReaderViewModel
 
@@ -50,8 +49,8 @@ struct ZineReaderView: View {
         } message: {
             Text("Esta ação não pode ser desfeita.")
         }
-        .sheet(item: $viewModel.shareItems) { items in
-            ActivityView(items: items.images)
+        .sheet(item: $viewModel.exportViewModel) { exportViewModel in
+            ExportSheet(viewModel: exportViewModel)
         }
     }
 

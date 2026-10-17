@@ -7,13 +7,13 @@
 
 import Foundation
 
-/// Lightweight description of a stored zine, used by the gallery.
+/// Zine info shown in the gallery.
 struct ZineSummary: Identifiable, Hashable, Sendable {
     let id: UUID
     var title: String
     var createdAt: Date
     var modifiedAt: Date
-    /// `false` while the cover is still blank — the gallery shows the default cover.
+    /// `false` while the cover is blank. The gallery then shows the default cover.
     var hasCoverArt: Bool
 }
 
@@ -23,7 +23,7 @@ enum ZineSortOrder: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    /// Localized name shown in the sort menu.
+    /// Name shown in the sort menu.
     var displayName: String {
         switch self {
         case .modified: return "Editadas recentemente"

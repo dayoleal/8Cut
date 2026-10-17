@@ -8,14 +8,14 @@
 import CoreGraphics
 import PencilKit
 
-/// A drawing instrument of the tool tray, backed by a PencilKit tool.
+/// Drawing tool of the tray, backed by a PencilKit tool.
 enum DrawingTool: String, CaseIterable, Identifiable, Sendable {
     case pencil, fountainPen, marker, watercolor, ink, crayon, ballpoint, eraser
 
     var id: String { rawValue }
 
 
-    /// Localized name, used for accessibility.
+    /// Name used for accessibility.
     var displayName: String {
         switch self {
         case .pencil: return "Lápis"
@@ -29,7 +29,7 @@ enum DrawingTool: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Illustration in `Assets.xcassets/tools`.
+    /// Image in `Assets.xcassets/tools`.
     var assetName: String {
         switch self {
         case .pencil: return "pencil"
@@ -61,10 +61,10 @@ enum DrawingTool: String, CaseIterable, Identifiable, Sendable {
     var usesColor: Bool { inkType != nil }
 }
 
-/// An item of the tool tray: an instrument or the ruler toggle.
+/// Item of the tool tray: a drawing tool or the ruler.
 enum TrayItem: Hashable, Identifiable, Sendable {
     case tool(DrawingTool)
-    /// Shows PencilKit's ruler on top of the current instrument.
+    /// Toggles the PencilKit ruler.
     case ruler
 
     var id: String {
@@ -74,7 +74,7 @@ enum TrayItem: Hashable, Identifiable, Sendable {
         }
     }
 
-    /// Tray order, as in the design.
+    /// Tray order.
     static let all: [TrayItem] = [
         .tool(.pencil), .tool(.fountainPen), .tool(.marker), .tool(.watercolor),
         .tool(.ink), .tool(.crayon), .tool(.ballpoint), .ruler, .tool(.eraser)
@@ -94,8 +94,7 @@ enum TrayItem: Hashable, Identifiable, Sendable {
         }
     }
 
-    /// Width of the illustration in the tray on the 11-inch iPad, in points.
-    /// Height follows the artwork's aspect ratio.
+    /// Image width in the tray on the 11-inch iPad, in points.
     var designWidth: CGFloat {
         switch self {
         case .tool(.pencil): return 21
@@ -111,14 +110,12 @@ enum TrayItem: Hashable, Identifiable, Sendable {
     }
 }
 
-/// An immutable snapshot of everything the canvas needs to build its `PKTool`.
-///
-/// Acts as a small factory (``makePKTool()``) and is `Equatable`, so the canvas
-/// only reconfigures PencilKit when something actually changed.
+/// Tool settings used to build the `PKTool`. `Equatable` so the canvas only
+/// updates the tool when it changes.
 struct ToolConfiguration: Equatable, Sendable {
     var tool: DrawingTool
     var color: RGBAColor
-    /// `0...1`, mapped onto each tool's valid width range.
+    /// `0...1`, mapped to the tool's valid width range.
     var normalizedWidth: Double
 
     /// Builds the PencilKit tool for this configuration.

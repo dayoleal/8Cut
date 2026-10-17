@@ -8,20 +8,18 @@
 import Foundation
 import Observation
 
-/// The single undo/redo stack of an open document (Command pattern).
+/// Undo/redo stack of an open document.
 ///
-/// PencilKit ships its own undo, but it lives in the canvas' `UndoManager` and is
-/// lost when the canvas switches page or layer. Every edit is therefore recorded
-/// here as an ``Entry`` that knows how to undo and redo itself and remembers the
-/// page it happened on, so the editor can navigate back to it.
+/// Used instead of the PencilKit `UndoManager`, which is reset when the canvas
+/// changes page or layer. Each entry stores its page so the editor can show it.
 @MainActor
 @Observable
 final class EditHistory {
-    /// A reversible edit.
+    /// An undoable edit.
     struct Entry {
         /// Short description, e.g. "Traço".
         let name: String
-        /// Page affected by the edit, if any.
+        /// Page where the edit happened.
         let pageIndex: Int?
         let undo: @MainActor () -> Void
         let redo: @MainActor () -> Void
@@ -38,7 +36,7 @@ final class EditHistory {
 
     // MARK: - Recording
 
-    /// Records an edit that has already been applied. Clears the redo stack.
+    /// Adds an edit that was already applied. Clears the redo stack.
     ///
     /// - Parameters:
     ///   - name: Short description of the edit.
@@ -80,7 +78,7 @@ final class EditHistory {
         return entry.pageIndex
     }
 
-    /// Discards the whole history.
+    /// Clears both stacks.
     func removeAll() {
         undoStack.removeAll()
         redoStack.removeAll()

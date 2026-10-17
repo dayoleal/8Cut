@@ -9,13 +9,12 @@ import Foundation
 import UIKit
 import Observation
 
-/// State of the tool tray: selected instrument, color, widths and modes.
-///
-/// Each instrument remembers its own width, like a real pencil case.
+/// Tool tray state: selected tool, color, width and opacity.
+/// Width is stored per tool.
 @MainActor
 @Observable
 final class ToolPaletteViewModel {
-    /// The instrument in hand.
+    /// Selected tool.
     var selectedTool: DrawingTool = .ballpoint {
         didSet {
             if selectedTool.usesColor { lastInkTool = selectedTool }
@@ -30,13 +29,13 @@ final class ToolPaletteViewModel {
         .ink: 0.15, .crayon: 0.35, .ballpoint: 0.15, .eraser: 0.3
     ]
     var isRulerActive = false
-    /// When `false`, only Apple Pencil draws and fingers pan/zoom (palm rejection).
+    /// When `false`, only Apple Pencil draws and fingers scroll and zoom.
     var allowsFingerDrawing = true
 
-    /// Whether the "…" options popover is shown.
+    /// Shows the options popover.
     var isShowingOptions = false
 
-    /// Quick colors of the swatch grid (the sixth cell is the system picker).
+    /// Preset colors. The sixth cell of the grid is the system color picker.
     let swatches: [RGBAColor] = [
         RGBAColor(red: 1, green: 1, blue: 1),
         RGBAColor(red: 0.2, green: 0.47, blue: 0.96),
@@ -48,23 +47,26 @@ final class ToolPaletteViewModel {
     /// Tray items in display order.
     var trayItems: [TrayItem] { TrayItem.all }
 
-    /// Last inking instrument, restored when leaving the eraser.
+    /// Called when a drawing tool is picked in the tray.
+    @ObservationIgnored var onToolPicked: (() -> Void)?
+
+    /// Last ink tool, restored when leaving the eraser.
     private(set) var lastInkTool: DrawingTool = .ballpoint
 
     // MARK: Derived state
 
-    /// Width of the selected instrument.
+    /// Width of the selected tool.
     var width: Double {
         get { widths[selectedTool] ?? 0.2 }
         set { widths[selectedTool] = min(max(newValue, 0), 1) }
     }
 
-    /// Whether opacity applies to the instrument in hand.
+    /// `false` for the eraser.
     var isOpacityEnabled: Bool { selectedTool.usesColor }
 
     func isSelected(_ tool: DrawingTool) -> Bool { selectedTool == tool }
 
-    /// Height of a tray artwork drawn at `width`, keeping the asset's aspect ratio.
+    /// Height of a tray image for the given width, keeping its aspect ratio.
     ///
     /// - Parameters:
     ///   - item: The tray item.
@@ -74,7 +76,7 @@ final class ToolPaletteViewModel {
         return width * size.height / size.width
     }
 
-    /// Whether a tray item is lifted: the instrument in hand, or the ruler while it is on.
+    /// Selected tool, or the ruler when it is on.
     func isRaised(_ item: TrayItem) -> Bool {
         switch item {
         case .tool(let tool): return isSelected(tool)
@@ -96,17 +98,20 @@ final class ToolPaletteViewModel {
         selectedTool = tool
     }
 
-    /// Picks a color; leaves the eraser if it was in hand.
+    /// Selects a color. Switches back to the last ink tool if the eraser is selected.
     func select(_ color: RGBAColor) {
         self.color = color
         if !selectedTool.usesColor { selectedTool = lastInkTool }
     }
 
-    /// Picks an instrument, or toggles the ruler.
+    /// Selects a tool or toggles the ruler.
     func select(_ item: TrayItem) {
         switch item {
-        case .tool(let tool): select(tool)
-        case .ruler: toggleRuler()
+        case .tool(let tool):
+            select(tool)
+            onToolPicked?()
+        case .ruler:
+            toggleRuler()
         }
     }
 
@@ -118,7 +123,7 @@ final class ToolPaletteViewModel {
         isRulerActive.toggle()
     }
 
-    /// Apple Pencil double tap: switches between the last ink and the eraser.
+    /// Switches between the eraser and the last ink tool.
     func toggleEraser() {
         selectedTool = selectedTool == .eraser ? lastInkTool : .eraser
     }

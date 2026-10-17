@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-/// Storage of the user's zines (Repository pattern).
+/// Zine storage used by the view models.
 @MainActor
 protocol ZineRepository: AnyObject {
     /// Every stored zine, unsorted.
@@ -36,7 +36,7 @@ protocol ZineRepository: AnyObject {
     /// Loads a zine for reading or editing.
     func openDocument(_ id: UUID) throws -> ZineDocument
 
-    /// The rendered cover saved with the zine, if any.
+    /// Saved cover image.
     func coverImage(for id: UUID) -> UIImage?
 }
 
@@ -53,14 +53,13 @@ enum ZineRepositoryError: LocalizedError {
 
 // MARK: - File system implementation
 
-/// ``ZineRepository`` that stores one ``ZinePackage`` per zine under
-/// `Documents/Zines`.
+/// Stores one ``ZinePackage`` per zine in `Documents/Zines`.
 @MainActor
 final class FileZineRepository: ZineRepository {
     /// Folder that holds every `.zine` package.
     let rootURL: URL
 
-    /// - Parameter rootURL: Custom storage folder (previews and tests).
+    /// - Parameter rootURL: Storage folder for previews and tests.
     ///   Defaults to `Documents/Zines`.
     init(rootURL: URL? = nil) {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -144,16 +143,16 @@ final class FileZineRepository: ZineRepository {
                     hasCoverArt: coverHasArt(zine, in: package))
     }
 
-    /// The cover has art when it has an image, colored paper or a non-empty drawing.
+    /// `true` when the cover has an image, a paper color or a drawing.
     private func coverHasArt(_ zine: Zine, in package: ZinePackage) -> Bool {
         guard let cover = zine.pages.first else { return false }
         if cover.paperColor != .paper { return true }
         return cover.layers.contains { layer in
             switch layer.content {
-            case .image:
+            case .image, .text:
                 return true
             case .drawing:
-                // An empty serialized PKDrawing is only a few dozen bytes.
+                // An empty PKDrawing file is a few dozen bytes.
                 return package.drawingFileSize(for: layer.id) > 400
             }
         }

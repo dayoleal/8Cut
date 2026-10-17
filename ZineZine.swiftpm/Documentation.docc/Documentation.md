@@ -1,15 +1,13 @@
 # ``AppModule``
 
-Make 8-page, one-sheet zines on iPad: draw, collage, leaf through and print.
+Create 8-page zines on iPad: draw, add images, read and print.
 
 ## Overview
 
-8-Cut is a SwiftUI app built with MVVM. Views only render state and forward
-user actions; view models hold the state, the actions and the data access;
-models describe the zine and how it is stored. The drawing surface is UIKit +
-PencilKit for stroke latency, bridged into SwiftUI.
+8-Cut is a SwiftUI app that uses MVVM. The drawing canvas uses PencilKit in a
+UIKit view.
 
-Read <doc:Architecture> for how the pieces fit together.
+See <doc:Architecture>.
 
 ## Topics
 
@@ -36,6 +34,7 @@ Read <doc:Architecture> for how the pieces fit together.
 - ``ReaderViewModel``
 - ``EditorViewModel``
 - ``ToolPaletteViewModel``
+- ``ExportViewModel``
 
 ### Views
 
@@ -50,6 +49,9 @@ Read <doc:Architecture> for how the pieces fit together.
 - ``PageCanvasView``
 - ``PageCanvasHostView``
 - ``PageDrawerView``
+- ``LayersPanelView``
+- ``TextEditorSheet``
+- ``ExportSheet``
 - ``ToolSheet``
 - ``DeskBackground``
 - ``ChromeIconButton``
@@ -60,3 +62,6 @@ Read <doc:Architecture> for how the pieces fit together.
 - ``FileZineRepository``
 - ``ZinePackage``
 - ``PageRenderer``
+- ``ImageProcessing``
+- ``ZineExporter``
+- ``PrintLayout``
