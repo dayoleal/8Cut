@@ -8,11 +8,8 @@
 import Foundation
 import Observation
 
-/// Root view model: owns navigation and creates the screen view models.
-///
-/// Screens never navigate by themselves; their view models call the routing
-/// protocols implemented here (``GalleryRouting``, ``ReaderRouting`` and
-/// ``EditorRouting``). The ``ZineRepository`` is injected once and shared.
+/// Root view model. Holds the current screen and creates the screen view models,
+/// which navigate through ``GalleryRouting``, ``ReaderRouting`` and ``EditorRouting``.
 @MainActor
 @Observable
 final class AppViewModel {
@@ -22,11 +19,11 @@ final class AppViewModel {
         case reader(ReaderViewModel)
         case editor(EditorViewModel)
 
-        /// Stable identifier used to animate screen changes.
+        /// Used to animate screen changes.
         var id: String {
             switch self {
             case .gallery: return "gallery"
-            // ObjectIdentifier is not actor-isolated, unlike the view model's properties.
+            // ObjectIdentifier can be read outside the main actor.
             case .reader(let viewModel): return "reader-\(ObjectIdentifier(viewModel).hashValue)"
             case .editor(let viewModel): return "editor-\(ObjectIdentifier(viewModel).hashValue)"
             }
@@ -34,12 +31,12 @@ final class AppViewModel {
     }
 
     private(set) var screen: Screen = .gallery
-    /// Kept alive between visits to preserve sort and search.
+    /// Kept between visits so sort and search are preserved.
     let galleryViewModel: GalleryViewModel
 
     private let repository: ZineRepository
 
-    /// - Parameter repository: Storage shared by every screen.
+    /// - Parameter repository: Zine storage.
     init(repository: ZineRepository) {
         self.repository = repository
         self.galleryViewModel = GalleryViewModel(repository: repository)

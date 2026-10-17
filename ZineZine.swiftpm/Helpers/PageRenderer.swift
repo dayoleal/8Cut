@@ -8,17 +8,17 @@
 import UIKit
 import PencilKit
 
-/// Flattens page layers into a bitmap (Facade over Core Graphics and PencilKit).
+/// Renders pages to images. Used for thumbnails, the reader, sharing and the editor.
 @MainActor
 enum PageRenderer {
     /// Renders a page.
     ///
     /// - Parameters:
     ///   - page: The page to render.
-    ///   - document: Provides drawings and images for the page's layers.
-    ///   - scale: Pixels per page point. `1` renders 1000 px wide.
-    ///   - includePaper: Fills the paper color first. Off for editor composites.
-    ///   - layerRange: Subset of layer indices to draw; `nil` draws every layer.
+    ///   - document: Source of drawings and images.
+    ///   - scale: Pixels per page point. `1` gives 1000 px wide.
+    ///   - includePaper: Fills the paper color first.
+    ///   - layerRange: Layers to draw. `nil` draws all.
     /// - Returns: The flattened image.
     static func render(page: ZinePage,
                        in document: ZineDocument,

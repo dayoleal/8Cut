@@ -7,10 +7,10 @@
 
 import SwiftUI
 
-/// A stored zine in the gallery grid.
+/// Zine card of the gallery grid.
 struct ZineCard: View {
     let item: ZineSummary
-    /// Saved cover provided by the view model.
+    /// Saved cover.
     let cover: UIImage?
 
     var body: some View {
@@ -20,7 +20,7 @@ struct ZineCard: View {
     }
 }
 
-/// The dashed "+" card that creates a new zine.
+/// "+" card that creates a new zine.
 struct NewZineCard: View {
     let action: () -> Void
 

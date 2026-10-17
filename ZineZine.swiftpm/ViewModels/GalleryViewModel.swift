@@ -18,10 +18,8 @@ protocol GalleryRouting: AnyObject {
     func showEditor(for document: ZineDocument)
 }
 
-/// State and actions of the "Suas Revistas" screen.
-///
-/// Fetches zines from the ``ZineRepository``, filters and sorts them, loads the
-/// covers and drives every alert of the screen. ``GalleryView`` only renders.
+/// View model of the gallery screen. Loads, filters and sorts zines and handles
+/// rename, duplicate and delete.
 @MainActor
 @Observable
 final class GalleryViewModel {
@@ -44,12 +42,12 @@ final class GalleryViewModel {
 
     private let repository: ZineRepository
     @ObservationIgnored weak var router: GalleryRouting?
-    /// Covers already read from disk, keyed by zine and invalidated by `modifiedAt`.
+    /// Cover cache, invalidated when `modifiedAt` changes.
     @ObservationIgnored private var coverCache: [UUID: (modifiedAt: Date, image: UIImage?)] = [:]
 
     /// - Parameters:
     ///   - repository: Where zines are stored.
-    ///   - router: Navigation handler, usually the app coordinator.
+    ///   - router: Handles navigation.
     init(repository: ZineRepository, router: GalleryRouting? = nil) {
         self.repository = repository
         self.router = router
@@ -70,7 +68,7 @@ final class GalleryViewModel {
     /// The "+" card is hidden while searching.
     var showsNewZineCard: Bool { query.isEmpty }
 
-    /// Saved cover of a zine, read once per modification.
+    /// Saved cover of a zine.
     func coverImage(for item: ZineSummary) -> UIImage? {
         if let cached = coverCache[item.id], cached.modifiedAt == item.modifiedAt {
             return cached.image

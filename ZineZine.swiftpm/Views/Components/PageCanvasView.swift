@@ -12,7 +12,7 @@ import PencilKit
 struct PageCanvasView: UIViewRepresentable {
     let viewModel: EditorViewModel
 
-    /// Remembers what is already applied to avoid redundant work.
+    /// Last applied values, to skip unchanged updates.
     final class Coordinator {
         var pageIndex: Int?
         var layerID: UUID?
@@ -35,6 +35,9 @@ struct PageCanvasView: UIViewRepresentable {
             guard let layerID = coordinator.layerID, let pageIndex = coordinator.pageIndex else { return }
             viewModel?.canvasDidCommit(drawing, layerID: layerID, pageIndex: pageIndex)
         }
+        view.onImageTransformBegan = { [weak viewModel] in viewModel?.canvasDidBeginImageTransform() }
+        view.onImageTransformChanged = { [weak viewModel] in viewModel?.canvasDidChangeImageTransform($0) }
+        view.onImageTransformEnded = { [weak viewModel] in viewModel?.canvasDidEndImageTransform() }
         return view
     }
 
@@ -62,6 +65,12 @@ struct PageCanvasView: UIViewRepresentable {
                                   opacity: configuration.activeLayerOpacity,
                                   isEditable: configuration.isActiveLayerEditable)
         view.setComposites(below: configuration.composites.below, above: configuration.composites.above)
+        let image = configuration.activeImage
+        view.setActiveImage(image?.image,
+                            content: image?.content,
+                            opacity: image?.opacity ?? 1,
+                            isVisible: image?.isVisible ?? false,
+                            isEditable: image?.isEditable ?? false)
     }
 }
 

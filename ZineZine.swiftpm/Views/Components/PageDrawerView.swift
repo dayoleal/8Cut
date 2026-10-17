@@ -7,16 +7,12 @@
 
 import SwiftUI
 
-/// Page drawer attached to the right edge of the editor.
-///
-/// Closed, it shows a small tab; open, a narrow panel lists the 8 pages in
-/// reading order, with the current one on a gray highlight that runs into the
-/// screen edge. Measurements are in points on the 11-inch iPad and multiplied
-/// by `deviceScale`.
+/// Page list on the right edge of the editor. Sizes are in points on the 11-inch
+/// iPad and multiplied by `deviceScale`.
 struct PageDrawerView: View {
     @Bindable var viewModel: EditorViewModel
 
-    /// Visible width of the open panel.
+    /// Width of the open panel.
     private var panelWidth: CGFloat { 74 * deviceScale }
 
     var body: some View {
@@ -33,28 +29,11 @@ struct PageDrawerView: View {
     // MARK: - Tab
 
     private var tab: some View {
-        let isOpen = viewModel.isPageDrawerOpen
-        return Button {
+        DrawerTab(systemName: "square.fill.on.square.fill",
+                  title: "Páginas",
+                  isOpen: viewModel.isPageDrawerOpen) {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { viewModel.togglePageDrawer() }
-        } label: {
-            VStack(spacing: 4 * deviceScale) {
-                Image(systemName: "square.fill.on.square.fill")
-                    .font(.system(size: 18 * deviceScale, weight: .semibold))
-                if !isOpen {
-                    Text("Páginas")
-                        .font(.system(size: 12 * deviceScale, weight: .semibold))
-                }
-            }
-            .foregroundStyle(Color.acidGreen)
-            .frame(width: (isOpen ? 48 : 70) * deviceScale, height: (isOpen ? 52 : 64) * deviceScale)
-            .background(
-                UnevenRoundedRectangle(topLeadingRadius: 16 * deviceScale,
-                                       bottomLeadingRadius: isOpen ? 0 : 16 * deviceScale)
-                    .fill(Color.chromeDark)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isOpen ? "Fechar páginas" : "Abrir páginas")
     }
 
     // MARK: - List
@@ -91,8 +70,7 @@ struct PageDrawerView: View {
     }
 }
 
-/// A page thumbnail with its label. The selected page is slightly larger and
-/// sits on a gray highlight that runs into the screen edge.
+/// Page thumbnail and label. The selected page is larger and highlighted.
 struct PageDrawerItem: View {
     let image: UIImage?
     let paper: Color
@@ -121,8 +99,7 @@ struct PageDrawerItem: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .padding(.leading, 6 * deviceScale)
-                // Never wider than the thumbnail, so long labels ("Contracapa")
-                // don't push the column out of alignment.
+                // Keeps long labels ("Contracapa") from widening the item.
                 .frame(width: thumbnailWidth, alignment: .leading)
         }
         .padding(.leading, isSelected ? 8 * deviceScale : 0)

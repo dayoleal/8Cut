@@ -10,11 +10,10 @@ import CoreGraphics
 
 // MARK: - Format
 
-/// Fixed geometry and conventions of an 8-page, one-sheet zine.
+/// Constants of the 8-page zine format.
 ///
-/// A sheet (A4 or Letter, landscape) is split into 4 columns × 2 rows, so every
-/// page is one eighth of the sheet. On A4 that is 74.25 × 105 mm, a 1 : √2 portrait
-/// page. All page content is stored in this logical coordinate space.
+/// One landscape sheet is split into 4 columns and 2 rows, so a page is 1/8 of the
+/// sheet (74.25 × 105 mm on A4). Page content uses the coordinates of ``pageSize``.
 enum ZineFormat {
     /// Number of pages in reading order: `0` is the cover, `1...6` the inside
     /// pages and `7` the back cover.
@@ -32,10 +31,10 @@ enum ZineFormat {
     /// Current version written to `manifest.json`.
     static let currentVersion = 1
 
-    /// User-facing name of a page ("Capa", "Pág 1"..."Pág 6", "Contracapa").
+    /// Page name shown in the UI ("Capa", "Pág 1"..."Pág 6", "Contracapa").
     ///
     /// - Parameter index: Page index in reading order.
-    /// - Returns: A short localized label.
+    /// - Returns: The page name.
     static func pageLabel(_ index: Int) -> String {
         switch index {
         case 0: return "Capa"
@@ -47,11 +46,8 @@ enum ZineFormat {
 
 // MARK: - Zine
 
-/// The persisted description of a zine — the content of `manifest.json`.
-///
-/// Heavy content (PencilKit strokes and imported images) lives in separate files
-/// inside the package and is referenced by layer ID or asset name.
-/// See ``ZinePackage``.
+/// Zine saved in `manifest.json`. Drawings and images are stored in separate
+/// files of the ``ZinePackage``.
 struct Zine: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
     var title: String
@@ -79,11 +75,11 @@ struct Zine: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Page
 
-/// A single page: paper color plus an ordered stack of layers.
+/// A page with its paper color and layers.
 struct ZinePage: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
     var paperColor: RGBAColor
-    /// Composition order — index `0` is the bottom-most layer.
+    /// Index `0` is the bottom layer.
     var layers: [ZineLayer]
 
     /// A white page with a single drawing layer.
@@ -94,7 +90,7 @@ struct ZinePage: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Layer
 
-/// A layer of a page and its compositing attributes.
+/// A layer of a page.
 struct ZineLayer: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
     var name: String
@@ -117,7 +113,7 @@ struct ZineLayer: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// What a layer contains.
+/// Content of a layer.
 enum LayerContent: Codable, Hashable, Sendable {
     /// PencilKit strokes, stored at `drawings/<layer id>.drawing`.
     case drawing
@@ -125,7 +121,7 @@ enum LayerContent: Codable, Hashable, Sendable {
     case image(ImageLayerContent)
 }
 
-/// Placement of an imported image on the page.
+/// Imported image and its position on the page.
 struct ImageLayerContent: Codable, Hashable, Sendable {
     var assetName: String
     /// Width in page points when `transform.scale == 1`.
@@ -135,7 +131,7 @@ struct ImageLayerContent: Codable, Hashable, Sendable {
     var transform: LayerTransform
 }
 
-/// A similarity transform applied around the content's center.
+/// Position, scale and rotation around the content center.
 struct LayerTransform: Codable, Hashable, Sendable {
     var centerX: Double
     var centerY: Double
@@ -144,13 +140,13 @@ struct LayerTransform: Codable, Hashable, Sendable {
     var rotation: Double = 0
 }
 
-/// Compositing mode of a layer, mapped 1:1 to Core Graphics.
+/// Blend mode of a layer.
 enum LayerBlendMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case normal, multiply, screen, overlay, darken, lighten, colorBurn, colorDodge, difference
 
     var id: String { rawValue }
 
-    /// Localized name shown in the layer panel.
+    /// Name shown in the layer panel.
     var displayName: String {
         switch self {
         case .normal: return "Normal"

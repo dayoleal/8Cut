@@ -7,16 +7,13 @@
 
 import SwiftUI
 
-/// How the desk artwork is framed on each screen.
-///
-/// Every screen uses the same `Background` asset with its own zoom, anchor,
-/// exposure and saturation.
+/// Zoom, position, brightness and saturation of the `Background` image per screen.
 enum DeskBackgroundStyle {
-    /// Gallery: zoomed on the upper center, lighter, with full color.
+    /// Zoomed on the upper center, lighter.
     case gallery
-    /// Reader: medium zoom, light, so the zine stands out.
+    /// Medium zoom, lighter.
     case reader
-    /// Editor: the whole desk, darker, so the white paper pops.
+    /// Full image, darker.
     case editor
 
     var scale: CGFloat {
@@ -52,7 +49,7 @@ enum DeskBackgroundStyle {
     }
 }
 
-/// The work desk drawn behind every screen.
+/// Background image of the screens.
 struct DeskBackground: View {
     var style: DeskBackgroundStyle
 

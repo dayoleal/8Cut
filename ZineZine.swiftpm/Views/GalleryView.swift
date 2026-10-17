@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// "Suas Revistas": the local gallery of zines laid out on the desk.
+/// Gallery screen ("Suas Revistas").
 struct GalleryView: View {
     @Bindable var viewModel: GalleryViewModel
     @FocusState private var isSearchFocused: Bool

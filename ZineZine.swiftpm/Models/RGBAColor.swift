@@ -8,10 +8,7 @@
 import SwiftUI
 import UIKit
 
-/// A platform-independent, `Codable` sRGB color.
-///
-/// Models store colors as plain numbers so the manifest stays portable; use
-/// ``uiColor`` and ``color`` at the UI boundary.
+/// `Codable` sRGB color used by the models.
 struct RGBAColor: Codable, Hashable, Sendable {
     var red: Double
     var green: Double
@@ -26,8 +23,7 @@ struct RGBAColor: Codable, Hashable, Sendable {
 // MARK: - UIKit & SwiftUI bridging
 
 extension RGBAColor {
-    /// Creates a color from a `UIColor`, resolving dynamic colors in light mode
-    /// (paper is always "light").
+    /// Creates a color from a `UIColor`. Dynamic colors are resolved in light mode.
     init(_ color: UIColor) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))

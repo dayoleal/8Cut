@@ -19,7 +19,7 @@ struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
-/// Images to share, identifiable for `.sheet(item:)`.
+/// Images to share, used with `.sheet(item:)`.
 struct ShareItems: Identifiable {
     let id = UUID()
     let images: [UIImage]

@@ -6,8 +6,9 @@
 //
 
 import SwiftUI
+import PhotosUI
 
-/// The editing screen
+/// Editor screen.
 struct EditorView: View {
     @Bindable var viewModel: EditorViewModel
     @Environment(\.scenePhase) private var scenePhase
@@ -29,11 +30,14 @@ struct EditorView: View {
                     Spacer()
                 }
 
-                PageDrawerView(viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, (isLandscape ? 100 : 120) * deviceScale)
-                    .padding(.bottom, (viewModel.isToolSheetExpanded ? 150 : 40) * deviceScale)
-                    .ignoresSafeArea(edges: .trailing)
+                VStack(alignment: .trailing, spacing: 12 * deviceScale) {
+                    PageDrawerView(viewModel: viewModel)
+                    LayersPanelView(viewModel: viewModel)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, (isLandscape ? 100 : 120) * deviceScale)
+                .padding(.bottom, (viewModel.isToolSheetExpanded ? 150 : 40) * deviceScale)
+                .ignoresSafeArea(edges: .trailing)
 
                 VStack {
                     Spacer()
@@ -51,6 +55,11 @@ struct EditorView: View {
         }
         .sheet(item: $viewModel.shareItems) { items in
             ActivityView(items: items.images)
+        }
+        .alert("Algo deu errado", isPresented: $viewModel.isShowingError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
     }
 
@@ -70,8 +79,11 @@ struct EditorView: View {
             ChromeIconButton(systemName: "house") { viewModel.close() }
                 .accessibilityLabel("Galeria")
 
-            ChromeIconButton(systemName: "photo.badge.plus", isEnabled: false) {}
-                .accessibilityLabel("Adicionar imagem")
+            PhotosPicker(selection: $viewModel.photoSelection, matching: .images) {
+                ChromeIcon(systemName: "photo.badge.plus")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Adicionar imagem")
             ChromeIconButton(systemName: "textformat.size", isEnabled: false) {}
                 .accessibilityLabel("Adicionar texto")
 
@@ -90,6 +102,7 @@ struct EditorView: View {
 
     private var undoRedo: some View {
         HStack(spacing: 10) {
+
             ChromeIconButton(systemName: "arrow.left", isEnabled: viewModel.canUndo) { viewModel.undo() }
                 .accessibilityLabel("Desfazer")
             ChromeIconButton(systemName: "arrow.right", isEnabled: viewModel.canRedo) { viewModel.redo() }

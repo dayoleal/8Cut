@@ -17,16 +17,13 @@ protocol ReaderRouting: AnyObject {
     func delete(_ document: ZineDocument)
 }
 
-/// State and actions of the reading mode, including the spread logic used by
-/// ``BookSpreadView``.
-///
-/// Spreads of an 8-page zine:
+/// View model of the reader. Spreads of an 8-page zine:
 /// ```
-/// 0: [ —          | cover ]   closed, showing the cover
+/// 0: [            | cover ]
 /// 1: [ page 1     | page 2 ]
 /// 2: [ page 3     | page 4 ]
 /// 3: [ page 5     | page 6 ]
-/// 4: [ back cover | —      ]  closed, showing the back
+/// 4: [ back cover |        ]
 /// ```
 @MainActor
 @Observable
@@ -54,12 +51,12 @@ final class ReaderViewModel {
     var deletionTitle: String { "Apagar \"\(title)\"?" }
     var pageCount: Int { document.pages.count }
 
-    /// Number shown in the page counter: the right-hand page, or the back cover.
+    /// Page number shown in the counter.
     var currentPageNumber: Int { min(spread * 2 + 1, pageCount) }
 
-    /// Page artwork for the book view.
+    /// Rendered page.
     func pageImage(at index: Int) -> UIImage? {
-        // Reading the revision registers observation, so the book recomposes on change.
+        // Read so the view updates when the content changes.
         _ = document.contentRevision
         return document.readerImage(for: index)
     }
@@ -70,33 +67,32 @@ final class ReaderViewModel {
     var spreadCount: Int { pageCount / 2 + 1 }
     var lastSpread: Int { spreadCount - 1 }
 
-    /// Page on the left of a spread, or `nil` when the zine is closed on that side.
+    /// Left page of a spread, or `nil` on the cover spread.
     func leftPageIndex(ofSpread spread: Int) -> Int? {
         let index = spread * 2 - 1
         return (0..<pageCount).contains(index) ? index : nil
     }
 
-    /// Page on the right of a spread, or `nil` when the zine is closed on that side.
+    /// Right page of a spread, or `nil` on the back cover spread.
     func rightPageIndex(ofSpread spread: Int) -> Int? {
         let index = spread * 2
         return (0..<pageCount).contains(index) ? index : nil
     }
 
-    /// How many pages are stacked under a left page (drawn at most 3).
+    /// Number of page edges drawn under a left page (max 3).
     func pagesBelow(leftPage index: Int) -> Int { min(index, 3) }
 
-    /// How many pages are stacked under a right page (drawn at most 3).
+    /// Number of page edges drawn under a right page (max 3).
     func pagesBelow(rightPage index: Int) -> Int { min(pageCount - 1 - index, 3) }
 
-    /// Horizontal offset of the book, as a fraction of a page width: a closed
-    /// zine (cover or back cover) is centered on screen.
+    /// Horizontal offset of the book in page widths. Centers the closed zine.
     func bookOffsetFactor(forSpread spread: Int) -> CGFloat {
         if spread <= 0 { return -0.5 }
         if spread >= lastSpread { return 0.5 }
         return 0
     }
 
-    /// Limits a drag progress to the flips that are possible from the current spread.
+    /// Clamps the drag progress to the flips allowed from the current spread.
     ///
     /// - Parameter rawProgress: Drag distance in page widths; positive flips forward.
     /// - Returns: The progress clamped to `-1...1`.
@@ -107,11 +103,11 @@ final class ReaderViewModel {
         return max(-1, min(1, progress))
     }
 
-    /// Whether a released drag should complete the flip.
+    /// Whether a released drag completes the flip.
     ///
     /// - Parameters:
-    ///   - progress: Progress when the finger lifted.
-    ///   - predictedProgress: Progress predicted from the release velocity.
+    ///   - progress: Progress at release.
+    ///   - predictedProgress: Predicted progress from the release velocity.
     func shouldCommitFlip(progress: Double, predictedProgress: Double) -> Bool {
         let sameDirection = predictedProgress.sign == progress.sign
         return abs(progress) > 0.5 || (sameDirection && abs(predictedProgress) > 0.8)
@@ -122,7 +118,7 @@ final class ReaderViewModel {
         (0...lastSpread).contains(spread + (forward ? 1 : -1))
     }
 
-    /// Moves to the next (`1`) or previous (`-1`) spread after the flip animation.
+    /// Moves to the next (`1`) or previous (`-1`) spread.
     func completeFlip(direction: Int) {
         let next = spread + direction
         guard (0...lastSpread).contains(next) else { return }

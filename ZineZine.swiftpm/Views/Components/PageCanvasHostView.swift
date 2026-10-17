@@ -15,13 +15,16 @@ final class ZineCanvasView: PKCanvasView {
     override var undoManager: UndoManager? { privateUndoManager }
 }
 
-/// UIKit canvas of a single page, built as a "sandwich":
+/// UIKit canvas of a page. The active layer is a live `PKCanvasView`; the layers
+/// below and above it are shown as rendered images.
 final class PageCanvasHostView: UIView {
-    /// The live PencilKit canvas.
+    /// Canvas of the active layer.
     let canvasView = ZineCanvasView()
     private let paperView = UIView()
     private let belowView = UIImageView()
     private let aboveView = UIImageView()
+    /// Active image layer, moved with pan, pinch and rotation.
+    private let imageLayerView = UIImageView()
 
     // MARK: Callbacks
 
@@ -30,6 +33,9 @@ final class PageCanvasHostView: UIView {
     var onPencilDoubleTap: (() -> Void)?
     var onUndoGesture: (() -> Void)?
     var onRedoGesture: (() -> Void)?
+    var onImageTransformBegan: (() -> Void)?
+    var onImageTransformChanged: ((LayerTransform) -> Void)?
+    var onImageTransformEnded: (() -> Void)?
 
     // MARK: State
 
@@ -37,8 +43,10 @@ final class PageCanvasHostView: UIView {
     private var isLoadingDrawing = false
     private var lastLayoutSize: CGSize = .zero
     private var fitZoomScale: CGFloat = 1
+    private var imageContent: ImageLayerContent?
+    private var activeImageGestures = 0
 
-    /// Areas covered by floating chrome; the page is fitted into what is left.
+    /// Space taken by the toolbars. The page is fitted in the remaining area.
     var fitInsets: UIEdgeInsets = .zero {
         didSet {
             guard fitInsets != oldValue else { return }
@@ -79,6 +87,11 @@ final class PageCanvasHostView: UIView {
             overlay.isUserInteractionEnabled = false
         }
 
+        imageLayerView.contentMode = .scaleToFill
+        imageLayerView.isUserInteractionEnabled = true
+        imageLayerView.isHidden = true
+        imageLayerView.layer.borderColor = UIColor(named: "acidGreen")?.cgColor
+
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.overrideUserInterfaceStyle = .light
@@ -91,13 +104,14 @@ final class PageCanvasHostView: UIView {
         addSubview(paperView)
         addSubview(belowView)
         addSubview(canvasView)
+        addSubview(imageLayerView)
         addSubview(aboveView)
 
         installGestures()
     }
 
     private func installGestures() {
-        // Two fingers undo, three fingers redo (drawing-app convention).
+        // Two-finger tap undoes, three-finger tap redoes.
         let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndoTap))
         undoTap.numberOfTouchesRequired = 2
         undoTap.delegate = self
@@ -119,6 +133,14 @@ final class PageCanvasHostView: UIView {
         let pencilInteraction = UIPencilInteraction()
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleImagePan(_:)))
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handleImagePinch(_:)))
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleImageRotation(_:)))
+        for gesture in [pan, pinch, rotation] as [UIGestureRecognizer] {
+            gesture.delegate = self
+            imageLayerView.addGestureRecognizer(gesture)
+        }
     }
 
     // MARK: - Layout & zoom
@@ -133,7 +155,7 @@ final class PageCanvasHostView: UIView {
         syncOverlays()
     }
 
-    /// Zooms so the whole page fits in the free area and centers it.
+    /// Zooms to fit the page in the free area and centers it.
     ///
     /// - Parameter animated: Whether to animate the change.
     func fitToScreen(animated: Bool) {
@@ -149,7 +171,7 @@ final class PageCanvasHostView: UIView {
         canvasView.setZoomScale(fit, animated: animated)
         canvasView.contentSize = CGSize(width: page.width * fit, height: page.height * fit)
         centerContent()
-        // With content smaller than the free area, the right offset is the inset itself.
+        // Content is smaller than the free area, so the offset is the inset.
         canvasView.setContentOffset(CGPoint(x: -canvasView.contentInset.left,
                                             y: -canvasView.contentInset.top),
                                     animated: animated)
@@ -168,7 +190,7 @@ final class PageCanvasHostView: UIView {
                                                right: fitInsets.right + insetX)
     }
 
-    /// Places paper and composites exactly over the page area of the canvas.
+    /// Moves the paper and rendered layers to the page position in the canvas.
     private func syncOverlays() {
         let page = ZineFormat.pageSize
         let zoom = canvasView.zoomScale
@@ -180,11 +202,26 @@ final class PageCanvasHostView: UIView {
         belowView.frame = frame
         aboveView.frame = frame
         paperView.layer.shadowPath = UIBezierPath(rect: paperView.bounds).cgPath
+        layoutImageLayer()
+    }
+
+    /// Places the active image using its transform in page coordinates.
+    private func layoutImageLayer() {
+        guard let content = imageContent else { return }
+        let zoom = canvasView.zoomScale
+        let transform = content.transform
+        imageLayerView.transform = .identity
+        imageLayerView.bounds = CGRect(x: 0, y: 0, width: content.width * zoom, height: content.height * zoom)
+        imageLayerView.center = CGPoint(x: -canvasView.contentOffset.x + transform.centerX * zoom,
+                                        y: -canvasView.contentOffset.y + transform.centerY * zoom)
+        imageLayerView.transform = CGAffineTransform(rotationAngle: transform.rotation)
+            .scaledBy(x: transform.scale, y: transform.scale)
+        imageLayerView.layer.borderWidth = 2 / max(transform.scale, 0.01)
     }
 
     // MARK: - Content
 
-    /// Replaces the strokes on the canvas without recording an edit.
+    /// Sets the drawing without creating an edit.
     func load(drawing: PKDrawing) {
         isLoadingDrawing = true
         canvasView.drawing = drawing
@@ -193,7 +230,7 @@ final class PageCanvasHostView: UIView {
         canvasView.undoManager?.removeAllActions()
     }
 
-    /// Updates the flattened layers below and above the active one.
+    /// Sets the rendered layers below and above the active one.
     func setComposites(below: UIImage?, above: UIImage?) {
         belowView.image = below
         aboveView.image = above
@@ -205,10 +242,69 @@ final class PageCanvasHostView: UIView {
         canvasView.drawingGestureRecognizer.isEnabled = isEditable && isVisible
     }
 
+    /// Shows the active image layer, or hides it when `image` is `nil`.
+    func setActiveImage(_ image: UIImage?, content: ImageLayerContent?,
+                        opacity: CGFloat, isVisible: Bool, isEditable: Bool) {
+        imageLayerView.image = image
+        imageLayerView.isHidden = image == nil || !isVisible
+        imageLayerView.alpha = opacity
+        imageLayerView.isUserInteractionEnabled = isEditable
+        // The gesture already moved the view; don't reset it mid-gesture.
+        if activeImageGestures == 0 {
+            imageContent = content
+            layoutImageLayer()
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func handleUndoTap() { onUndoGesture?() }
     @objc private func handleRedoTap() { onRedoGesture?() }
+
+    @objc private func handleImagePan(_ gesture: UIPanGestureRecognizer) {
+        updateImage(with: gesture) { transform, zoom in
+            let translation = gesture.translation(in: self)
+            transform.centerX += translation.x / zoom
+            transform.centerY += translation.y / zoom
+            gesture.setTranslation(.zero, in: self)
+        }
+    }
+
+    @objc private func handleImagePinch(_ gesture: UIPinchGestureRecognizer) {
+        updateImage(with: gesture) { transform, _ in
+            transform.scale = min(max(transform.scale * gesture.scale, 0.05), 20)
+            gesture.scale = 1
+        }
+    }
+
+    @objc private func handleImageRotation(_ gesture: UIRotationGestureRecognizer) {
+        updateImage(with: gesture) { transform, _ in
+            transform.rotation += gesture.rotation
+            gesture.rotation = 0
+        }
+    }
+
+    /// Applies a gesture to the image transform and reports begin, change and end.
+    /// Pan, pinch and rotation can run together; begin/end are sent once.
+    private func updateImage(with gesture: UIGestureRecognizer,
+                             change: (inout LayerTransform, CGFloat) -> Void) {
+        guard var content = imageContent else { return }
+        switch gesture.state {
+        case .began:
+            if activeImageGestures == 0 { onImageTransformBegan?() }
+            activeImageGestures += 1
+        case .ended, .cancelled, .failed:
+            activeImageGestures = max(activeImageGestures - 1, 0)
+            if activeImageGestures == 0 { onImageTransformEnded?() }
+            return
+        default:
+            break
+        }
+        change(&content.transform, canvasView.zoomScale)
+        imageContent = content
+        layoutImageLayer()
+        onImageTransformChanged?(content.transform)
+    }
 }
 
 // MARK: - PKCanvasViewDelegate
@@ -233,7 +329,7 @@ extension PageCanvasHostView: PKCanvasViewDelegate {
     }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
-        // Releasing a pinch below the fitted size snaps back to the fitted page.
+        // Zooming out below the fitted size returns to the fitted size.
         if scale < fitZoomScale {
             fitToScreen(animated: true)
         }
@@ -264,8 +360,7 @@ extension PageCanvasHostView: UIPencilInteractionDelegate {
 
 // MARK: - PencilTouchDetector
 
-/// Watches touches without ever recognizing; reports when an Apple Pencil
-/// touches the screen so the editor can switch to "only Pencil draws".
+/// Gesture recognizer that never recognizes. Reports Apple Pencil touches.
 final class PencilTouchDetector: UIGestureRecognizer {
     var onPencil: (() -> Void)?
 

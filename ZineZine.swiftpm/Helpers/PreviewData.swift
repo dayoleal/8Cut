@@ -9,12 +9,12 @@ import Foundation
 import PencilKit
 import UIKit
 
-/// Sample data for `#Preview`s.
+/// Data for previews, saved in a temporary folder.
 @MainActor
 enum PreviewData {
     // MARK: Repository
 
-    /// A repository in a throwaway folder with two blank zines.
+    /// Repository with two blank zines.
     static func repository() -> FileZineRepository {
         let repository = FileZineRepository(rootURL: temporaryRoot())
         _ = try? repository.createZine(title: "Zine")
@@ -28,7 +28,7 @@ enum PreviewData {
 
     // MARK: Documents
 
-    /// A zine with a scribble on the cover and on page 1.
+    /// Zine with a drawing on the cover and on page 1.
     static func document() -> ZineDocument {
         let zine = Zine.blank(title: "Zine de exemplo")
         let package = ZinePackage(url: temporaryRoot().appendingPathComponent("\(zine.id.uuidString).zine"))
@@ -43,15 +43,16 @@ enum PreviewData {
     }
 
     /// An editor view model for previews.
-    static func editorViewModel(isPageDrawerOpen: Bool = false) -> EditorViewModel {
+    static func editorViewModel(isPageDrawerOpen: Bool = false, isShowingLayers: Bool = false) -> EditorViewModel {
         let viewModel = EditorViewModel(document: document())
         viewModel.isPageDrawerOpen = isPageDrawerOpen
+        viewModel.isShowingLayers = isShowingLayers
         return viewModel
     }
 
     // MARK: Drawings
 
-    /// A hand-drawn-looking spiral, so pages are not blank.
+    /// Spiral stroke.
     static func sampleDrawing(seed: Double = 0) -> PKDrawing {
         let center = CGPoint(x: ZineFormat.pageSize.width / 2, y: ZineFormat.pageSize.height / 2)
         let points = (0..<240).map { i -> PKStrokePoint in
@@ -67,7 +68,7 @@ enum PreviewData {
         return PKDrawing(strokes: [stroke])
     }
 
-    /// The UIKit canvas alone, with the sample scribble loaded.
+    /// Canvas with the sample drawing.
     static func canvasHostView() -> PageCanvasHostView {
         let view = PageCanvasHostView()
         view.backgroundColor = .darkGray
