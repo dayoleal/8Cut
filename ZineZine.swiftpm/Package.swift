@@ -8,32 +8,33 @@ import PackageDescription
 import AppleProductTypes
 
 let package = Package(
-    name: "ZineZine",
+    name: "8Cut",
     platforms: [
         .iOS("17.0")
     ],
     products: [
         .iOSApplication(
-            name: "ZineZine",
+            name: "8Cut",
             targets: ["AppModule"],
             bundleIdentifier: "dayo.ZineZine",
             teamIdentifier: "2B49H9LV4C",
             displayVersion: "1.0",
             bundleVersion: "1",
-            appIcon: .placeholder(icon: .plane),
+            appIcon: .asset("AppIcon"),
             accentColor: .presetColor(.green),
             supportedDeviceFamilies: [
                 .pad
             ],
             supportedInterfaceOrientations: [
                 .landscapeRight,
-                .landscapeLeft,
+                .landscapeLeft
             ],
             capabilities: [
                 .fileAccess(.pictureFolder, mode: .readWrite),
                 .fileAccess(.downloadsFolder, mode: .readWrite),
                 .fileAccess(.userSelectedFiles, mode: .readWrite)
-            ]
+            ],
+            appCategory: .entertainment
         )
     ],
     targets: [
