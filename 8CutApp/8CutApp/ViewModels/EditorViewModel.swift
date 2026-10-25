@@ -115,9 +115,10 @@ final class EditorViewModel {
     }
 
     init(document: ZineDocument,
-         tools: ToolPaletteViewModel = ToolPaletteViewModel(),
+         tools: ToolPaletteViewModel? = nil,
          router: EditorRouting? = nil) {
         self.document = document
+        let tools = tools ?? ToolPaletteViewModel()
         self.tools = tools
         self.router = router
         document.onDrawingReplaced = { [weak self] layerID in
