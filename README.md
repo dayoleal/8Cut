@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="docs/images/Frame%2017.png" width="130" alt="8-Cut app icon" style="border-radius: 28px;"/>
+
 # 8-Cut 🎨
 
 ### Unleash your daily creativity in classic 8-page zines. ✂️
@@ -41,9 +45,11 @@ It connects the raw, visceral visual allure of analog collages with the endless 
 
 <div align="center">
 
-<img src="https://github.com/user-attachments/assets/39073bbe-565c-4666-aef8-467db0789dd9" width="80%" alt="Edit Screen" style="border-radius: 12px;"/>
+<img src="docs/images/Frame%2096.png" width="32%" alt="Your zines library"/>
+<img src="docs/images/Frame%2095.png" width="32%" alt="Editing canvas with drawing tools"/>
+<img src="docs/images/Frame%2094.png" width="32%" alt="Zine preview with page flip"/>
 
-*The 8-Cut editing canvas, featuring drawing tools and image manipulation.*
+*Your zines library, the editing canvas with drawing tools and image manipulation, and the page-flip preview.*
 
 </div>
 
